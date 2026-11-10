@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Logan's World</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Logan's World: a dino-sized world where family leaves messages for Logan to keep for life.">
+<meta name="theme-color" content="#2f7d45">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Nunito:wght@500;700;800;900&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="v-intro">
+<canvas id="scene" aria-hidden="true"></canvas>
+
+<button class="sound-btn" id="sound-btn" type="button" aria-pressed="false"><span class="sound-dot" aria-hidden="true"></span><span id="sound-label">Sound off</span></button>
+
+<div class="rex-stage" id="rex-stage">
+  <p class="bubble" id="bubble" role="status" aria-live="polite"></p>
+  <button class="rex-btn" id="rex" type="button" aria-label="Rex the T-Rex. Tap to hear him roar."></button>
+</div>
+
+<main class="intro" id="intro">
+  <h1 class="logo" aria-label="Logan's World">
+    <span class="logo-name" aria-hidden="true" data-text="Logan's">Logan's</span>
+    <span class="logo-world" aria-hidden="true">world</span>
+  </h1>
+  <p class="intro-sub" id="intro-sub">Logan</p>
+  <button class="btn-big" id="enter" type="button">Enter</button>
+  <p class="intro-hint">Tap the ground and Rex will stomp over. Tap Rex to hear him roar.</p>
+</main>
+
+<div class="keypad-wrap" id="keypad" hidden>
+  <div class="keypad" role="dialog" aria-modal="true" aria-labelledby="kp-title">
+    <h2 id="kp-title">Family code</h2>
+    <p class="kp-sub" id="kp-sub">Enter the 4-digit code to step into Logan's world.</p>
+    <div class="kp-dots" id="kp-dots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="kp-grid" id="kp-grid"></div>
+    <p class="kp-demo" id="kp-demo" hidden>Showcase codes: family <b>1234</b>, parent <b>9876</b></p>
+    <button class="link-btn" id="kp-cancel" type="button">Not now</button>
+  </div>
+</div>
+
+<section class="welcome" id="welcome" hidden aria-labelledby="w-title">
+  <h2 class="w-title" id="w-title"><span>ROAR!</span> Welcome</h2>
+  <p class="w-sub" id="w-sub"></p>
+  <nav class="tiles" aria-label="Places in Logan's world">
+    <a class="tile tile-msg" href="#messages">
+      <svg viewBox="0 0 48 48" aria-hidden="true"><ellipse cx="24" cy="30" rx="9" ry="11"/><path d="M14 18 q2-14 6 0z M22 14 q2-14 4 0z M30 18 q4-14 6 0z"/></svg>
+      <span class="tile-kicker">Messages</span><span class="tile-label">Roar-mail for Logan</span>
+    </a>
+    <a class="tile tile-games" href="#games">
+      <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 6 C 12 6, 8 24, 8 30 a16 14 0 0 0 32 0 C 40 24, 36 6, 24 6z"/><path d="M14 26 l5 4 l5-4 l5 4 l5-4" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg>
+      <span class="tile-kicker">Play</span><span class="tile-label">Dino games</span>
+    </a>
+    <a class="tile tile-about" href="#about">
+      <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 14 a5 5 0 1 1 7-5 l14 14 a5 5 0 1 1 5 7 a5 5 0 1 1-7 5 l-14-14 a5 5 0 1 1-5-7z"/></svg>
+      <span class="tile-kicker">All about</span><span class="tile-label" id="tile-about-label">Logan</span>
+    </a>
+  </nav>
+  <button class="link-btn light" id="lock" type="button">Lock Logan's world</button>
+</section>
+
+<section class="page" id="page-messages" hidden aria-labelledby="m-title">
+  <header class="page-head">
+    <a class="back" href="#home">Back</a>
+    <div class="ph-titles">
+      <p class="kicker">Messages for <span class="kid-name">Logan</span></p>
+      <h2 id="m-title">Roar-mail</h2>
+    </div>
+    <button class="btn" id="new-msg" type="button">Leave a message</button>
+  </header>
+  <div class="page-body">
+    <p class="tl-meta" id="tl-meta"></p>
+    <div class="tl-scroller" id="tl-scroller" tabindex="0" role="region" aria-label="Messages in time order. Scroll to travel through time.">
+      <ol class="tl-track" id="tl-track"></ol>
+    </div>
+    <div class="tl-years" id="tl-years" role="group" aria-label="Jump to a year"></div>
+    <div class="owner-bar" id="tl-owner" hidden>
+      <span>Parent tools</span>
+      <button class="link-btn" id="tl-birthday-btn" type="button">Set Logan's birthday</button>
+      <button class="link-btn" id="tl-clear-examples" type="button">Remove example messages</button>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="page-games" hidden aria-labelledby="g-title">
+  <header class="page-head">
+    <a class="back" href="#home">Back</a>
+    <div class="ph-titles"><p class="kicker">Play with Rex</p><h2 id="g-title">Dino games</h2></div>
+  </header>
+  <div class="page-body">
+    <div class="game-pick" id="game-pick">
+      <button class="game-card" type="button" data-game="hatch">
+        <span class="gc-art gc-egg" aria-hidden="true"></span>
+        <span class="gc-title">Hatch the eggs</span>
+        <span class="gc-desc">Tap an egg three times. Who's inside?</span>
+      </button>
+      <button class="game-card" type="button" data-game="dig">
+        <span class="gc-art gc-dig" aria-hidden="true"></span>
+        <span class="gc-title">Fossil dig</span>
+        <span class="gc-desc">Brush away the dirt to find what's buried.</span>
+      </button>
+    </div>
+    <div class="game-view" id="game-view" hidden>
+      <div class="game-bar">
+        <button class="link-btn" id="game-back" type="button">All games</button>
+        <p class="game-title" id="game-title"></p>
+        <p class="game-score" id="game-score" aria-live="polite"></p>
+      </div>
+      <div class="game-area" id="game-area"></div>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="page-about" hidden aria-labelledby="a-title">
+  <header class="page-head">
+    <a class="back" href="#home">Back</a>
+    <div class="ph-titles"><p class="kicker">Field notes</p><h2 id="a-title">All about <span class="kid-name">Logan</span></h2></div>
+    <button class="btn ghost" id="about-edit" type="button" hidden>Edit</button>
+  </header>
+  <div class="page-body about" id="about-body"></div>
+</section>
+
+<div class="modal" id="compose" hidden>
+  <form class="sheet" id="compose-form" role="dialog" aria-modal="true" aria-labelledby="c-title" novalidate>
+    <h3 id="c-title">Leave a message for <span class="kid-name">Logan</span></h3>
+    <p class="sheet-sub">Write something Logan can read today, or in twenty years.</p>
+    <div class="row2">
+      <label class="field"><span>Your name</span><input id="c-name" name="name" autocomplete="name" maxlength="60" required></label>
+      <label class="field"><span>Who you are to <span class="kid-name">Logan</span></span><select id="c-rel" name="relation"></select></label>
+    </div>
+    <label class="field"><span>Your message</span><textarea id="c-text" name="text" rows="5" maxlength="4000" placeholder="Tell Logan a memory, a wish, or a really good dinosaur fact."></textarea></label>
+    <div class="attach">
+      <label class="chip-btn" for="c-file">Add a photo or video</label>
+      <input id="c-file" type="file" accept="image/*,video/*,audio/*" class="sr-only">
+      <button class="chip-btn" id="c-rec" type="button">Record a voice note</button>
+      <span class="rec-time" id="c-rec-time" hidden>0:00</span>
+    </div>
+    <div class="c-preview" id="c-preview" hidden></div>
+    <details class="when">
+      <summary>Is this a memory from another day?</summary>
+      <label class="field"><span>Date of the memory</span><input id="c-date" name="date" type="date"></label>
+    </details>
+    <p class="form-err" id="c-err" role="alert"></p>
+    <div class="sheet-actions">
+      <button class="link-btn" type="button" data-close>Cancel</button>
+      <button class="btn" type="submit" id="c-send">Send to <span class="kid-name">Logan</span></button>
+    </div>
+  </form>
+</div>
+
+<div class="modal" id="viewer" hidden>
+  <article class="sheet viewer" role="dialog" aria-modal="true" aria-labelledby="v-name">
+    <header class="v-head">
+      <span class="avatar" id="v-avatar"></span>
+      <div><h3 id="v-name"></h3><p class="v-when" id="v-when"></p></div>
+    </header>
+    <div class="v-media" id="v-media"></div>
+    <p class="v-text" id="v-text"></p>
+    <div class="sheet-actions">
+      <button class="link-btn danger" id="v-del" type="button" hidden>Delete message</button>
+      <button class="btn" type="button" data-close>Close</button>
+    </div>
+  </article>
+</div>
+
+<div class="modal" id="confirm" hidden>
+  <div class="sheet small" role="alertdialog" aria-modal="true" aria-labelledby="cf-title">
+    <h3 id="cf-title"></h3>
+    <p class="sheet-sub" id="cf-text"></p>
+    <label class="field" id="cf-field" hidden><span id="cf-label"></span><input id="cf-input"></label>
+    <div class="sheet-actions">
+      <button class="link-btn" type="button" id="cf-no">Cancel</button>
+      <button class="btn" type="button" id="cf-yes">OK</button>
+    </div>
+  </div>
+</div>
+
+<p class="toast" id="toast" role="status" aria-live="polite"></p>
+
+<script src="js/config.js"></script>
+<script src="js/store.js"></script>
+<script src="js/sound.js"></script>
+<script src="js/rex.js"></script>
+<script src="vendor/three.min.js"></script>
+<script src="js/world3d.js"></script>
+<script src="js/scene.js"></script>
+<script src="js/app.js"></script>
+<script src="js/timeline.js"></script>
+<script src="js/games.js"></script>
+<script src="js/about.js"></script>
+</body>
+</html>

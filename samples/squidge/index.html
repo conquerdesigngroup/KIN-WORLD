@@ -1,0 +1,1241 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Squidge</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;800&display=swap">
+<style>
+/* Layout: one full-bleed WebGL clay wall; wordmark top-left, a speech bubble over the face,
+   a floating dock (colors, Play, Sound) at the bottom and a pull-up Play panel. */
+:root{
+  --skin:#F4731F;      /* live: the current clay color, set from JS */
+  --ink:#5a2206;       /* live: deep shade of the clay, for text */
+  --paper:rgba(255,253,250,.9);
+  --glass:rgba(255,255,255,.3);
+  --glass-edge:rgba(255,255,255,.45);
+  --display:"Baloo 2", ui-rounded, "Arial Rounded MT Bold", system-ui, sans-serif;
+  color-scheme:light;
+}
+[hidden]{display:none!important}
+html,body{height:100%;overflow:hidden}
+body{background:var(--skin);color:var(--ink);font-family:var(--display);transition:background-color .6s ease;
+  touch-action:none;user-select:none;-webkit-user-select:none;cursor:default}
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block;image-rendering:auto}
+.brand{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));left:max(18px, env(safe-area-inset-left,0px));
+  font-weight:800;font-size:26px;letter-spacing:.01em;line-height:1;pointer-events:none;opacity:.85;
+  text-shadow:0 1px 0 rgba(255,255,255,.35)}
+.brand small{display:block;font-weight:600;font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.7;margin-top:4px}
+.say{position:fixed;left:50%;top:calc(64px + env(safe-area-inset-top,0px));transform:translateX(-50%) scale(.9);
+  max-width:min(440px, calc(100% - 32px));padding:10px 18px;border-radius:22px;background:var(--paper);color:var(--ink);
+  font-weight:600;font-size:18px;line-height:1.3;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.14);
+  opacity:0;transition:opacity .25s ease, transform .35s cubic-bezier(.3,1.6,.5,1);pointer-events:none}
+.say.show{opacity:1;transform:translateX(-50%) scale(1)}
+.dock{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));
+  display:flex;flex-direction:column;align-items:center;gap:10px;width:max-content;max-width:calc(100% - 32px)}
+.hint{font-weight:600;font-size:13px;letter-spacing:.02em;text-align:center;opacity:.85;transition:opacity 1.2s ease;
+  text-shadow:0 1px 0 rgba(255,255,255,.3);pointer-events:none;max-width:420px}
+.hint.fade{opacity:0}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
+.swatches{display:flex;gap:8px;padding:7px 9px;border-radius:999px;background:var(--glass);
+  box-shadow:inset 0 1px 0 var(--glass-edge),0 6px 20px rgba(0,0,0,.12);}
+.sw{width:28px;height:28px;border-radius:50%;border:0;padding:0;cursor:pointer;background:var(--c);
+  box-shadow:inset -3px -4px 6px rgba(0,0,0,.22),inset 3px 3px 5px rgba(255,255,255,.45),0 2px 4px rgba(0,0,0,.18);
+  transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
+.sw:hover{transform:scale(1.12)}
+.sw[aria-pressed="true"]{transform:scale(1.16);outline:3px solid rgba(255,255,255,.85);outline-offset:2px}
+.round{height:42px;min-width:42px;padding:0 16px;border-radius:999px;border:0;cursor:pointer;font:800 15px/1 var(--display);
+  color:var(--ink);background:var(--glass);display:inline-flex;align-items:center;gap:6px;
+  box-shadow:inset 0 1px 0 var(--glass-edge),0 6px 20px rgba(0,0,0,.12);}
+.round svg{width:20px;height:20px}
+.round[aria-pressed="true"]{background:var(--paper)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+.panel{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));
+  width:min(440px, calc(100% - 32px));max-height:min(62vh, 560px);overflow:auto;overscroll-behavior:contain;touch-action:pan-y;
+  background:var(--paper);color:var(--ink);border-radius:24px;padding:14px 16px 16px;box-shadow:0 18px 50px rgba(0,0,0,.22);
+  display:grid;gap:12px;user-select:auto;-webkit-user-select:auto}
+.panel header{display:flex;justify-content:space-between;align-items:center}
+.panel h2{margin:0;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;opacity:.7}
+.panel h1{margin:0;font-size:20px;font-weight:800}
+.close{border:0;background:transparent;color:var(--ink);font:800 26px/1 var(--display);cursor:pointer;width:36px;height:36px;border-radius:50%}
+.panel section{display:grid;gap:7px}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{border:2px solid var(--ink);background:transparent;color:var(--ink);border-radius:999px;padding:5px 13px;
+  font:700 15px/1.2 var(--display);cursor:pointer;transition:transform .15s ease}
+.chip:active{transform:scale(.95)}
+.chip[aria-pressed="true"]{background:var(--ink);color:#fff}
+.row{display:flex;gap:8px}
+.row input{flex:1;min-width:0;border:2px solid var(--ink);border-radius:14px;padding:8px 12px;font:600 16px/1.2 var(--display);
+  color:var(--ink);background:#fff}
+.row button{border:0;border-radius:14px;padding:0 14px;background:var(--ink);color:#fff;font:800 15px/1 var(--display);cursor:pointer}
+.note{margin:0;font-size:13px;opacity:.75;font-weight:500}
+.fallback{position:fixed;inset:0;display:grid;place-items:center;padding:24px;text-align:center;font-size:18px}
+@media (prefers-reduced-motion: reduce){.say,.sw,.chip{transition:none}}
+</style>
+
+<canvas id="gl" aria-label="A clay face that reacts to your pointer"></canvas>
+<div class="brand">Squidge<small>clay face playground</small></div>
+<div class="say" id="say" role="status" aria-live="polite"></div>
+
+<div class="panel" id="panel" hidden>
+  <header><h1>Play with Squidge</h1><button class="close" id="closePanel" type="button" aria-label="Close">×</button></header>
+  <section><h2>Tricks</h2><div class="chips">
+    <button class="chip" type="button" id="t-sneeze" data-trick="sneeze">Sneeze</button>
+    <button class="chip" type="button" id="t-yawn" data-trick="yawn">Yawn</button>
+    <button class="chip" type="button" id="t-bubble" data-trick="bubble">Blow a bubble</button>
+    <button class="chip" type="button" id="t-hiccups" data-trick="hiccups">Hiccups</button>
+    <button class="chip" type="button" id="t-peekaboo" data-trick="peekaboo">Peekaboo</button>
+    <button class="chip" type="button" id="t-giggle" data-trick="giggle">Giggle</button>
+  </div></section>
+  <section><h2>Games</h2><div class="chips">
+    <button class="chip" type="button" id="g-feed" data-game="feed" aria-pressed="false">Feed Squidge</button>
+    <button class="chip" type="button" id="g-hide" data-game="hide" aria-pressed="false">Hide and seek</button>
+  </div></section>
+  <section><h2>Mood</h2><div class="chips" id="moods">
+    <button class="chip" type="button" id="m-happy" data-mood="happy" aria-pressed="true">Happy</button>
+    <button class="chip" type="button" id="m-grumpy" data-mood="grumpy" aria-pressed="false">Grumpy</button>
+    <button class="chip" type="button" id="m-shy" data-mood="shy" aria-pressed="false">Shy</button>
+    <button class="chip" type="button" id="m-silly" data-mood="silly" aria-pressed="false">Silly</button>
+  </div></section>
+  <section><h2>Dress up</h2><div class="chips">
+    <button class="chip" type="button" id="d-glasses" data-dress="glasses" aria-pressed="false">Glasses</button>
+    <button class="chip" type="button" id="d-stache" data-dress="stache" aria-pressed="false">Mustache</button>
+    <button class="chip" type="button" id="d-bow" data-dress="bow" aria-pressed="false">Bow</button>
+    <button class="chip" type="button" id="d-hat" data-dress="hat" aria-pressed="false">Party hat</button>
+  </div></section>
+  <section><h2>Child's name</h2>
+    <form class="row" id="nameForm"><input id="nameInput" maxlength="24" placeholder="e.g. Logan" autocomplete="off"><button type="submit">Say hi</button></form>
+  </section>
+  <section><h2>Talk to Squidge</h2>
+    <form class="row" id="talkForm"><input id="talkInput" maxlength="120" placeholder="Type something…" autocomplete="off"><button type="submit">Send</button></form>
+    <p class="note" id="talkNote">Squidge repeats it back in a silly voice.</p>
+  </section>
+</div>
+
+<div class="dock" id="dock">
+  <div class="hint" id="hint">Move around · click the face · poke an eye · rub a cheek · drag on the wall · hold · shake · leave it alone</div>
+  <div class="bar">
+    <div class="swatches" role="group" aria-label="Clay color" id="swatches"></div>
+    <button class="round" type="button" id="playBtn" aria-expanded="false" aria-controls="panel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Play</button>
+    <button class="round" type="button" id="soundBtn" aria-pressed="true" aria-label="Sound on">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path id="waves" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/><path id="mute" d="M17 9l5 6M22 9l-5 6" hidden/></svg></button>
+  </div>
+</div>
+<div class="fallback" id="fallback" hidden>This toy needs WebGL, which this browser has turned off.</div>
+
+<script id="fs" type="x-shader/x-fragment">
+precision highp float;
+uniform vec2 uRes;
+uniform float uTime, uHalfH, uPupil, uSink, uBlush, uFx, uPuffOn, uSteps, uShSteps, uAOn;
+uniform vec3 uSkin, uBrowCol, uIris;
+uniform vec4 uLook;            // L.xy, R.xy
+uniform vec2 uLidT, uLidB, uLidTilt, uBrowY, uBrowTilt;
+uniform vec4 uMouth;           // open, smile, width, tongue
+uniform vec2 uSquish, uFaceOff, uCam;
+uniform vec4 uBubble;          // radius, wobble, cheek puff
+uniform vec4 uCandy;           // world xyz, radius
+uniform vec4 uDress;           // glasses, mustache, bow, hat (0..1, emerging)
+uniform vec4 uRip[4];          // world xy, start time, amplitude
+uniform vec4 uDent[10];        // world xy, strength
+uniform vec4 uPuff[8];         // world xy, size, type
+
+const float EX=0.37, EY=0.20, EZ=0.08, RE=0.25, RL=0.285, MY=-0.47, CAMD=4.0;
+const vec3 KEY=vec3(1.0,0.97,0.93);
+
+float smin(float a,float b,float k){float h=clamp(.5+.5*(b-a)/k,0.,1.);return mix(b,a,h)-k*h*(1.-h);}
+float smax(float a,float b,float k){return -smin(-a,-b,k);}
+float sdEll(vec3 p,vec3 r){float k0=length(p/r);float k1=length(p/(r*r));return k0*(k0-1.)/k1;}
+float sdCap(vec3 p,vec3 a,vec3 b,float r){vec3 pa=p-a,ba=b-a;float h=clamp(dot(pa,ba)/dot(ba,ba),0.,1.);return length(pa-ba*h)-r;}
+float sdRBox(vec3 p,vec3 b,float r){vec3 q=abs(p)-b+r;return length(max(q,0.))+min(max(q.x,max(q.y,q.z)),0.)-r;}
+float sdSeg(vec2 p,vec2 a,vec2 b){vec2 pa=p-a,ba=b-a;float h=clamp(dot(pa,ba)/dot(ba,ba),0.,1.);return length(pa-ba*h);}
+float dot2(vec2 v){return dot(v,v);}
+mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
+float sdRoundCone(vec3 p,vec3 a,vec3 b,float r1,float r2){
+  vec3 ba=b-a;float l2=dot(ba,ba);float rr=r1-r2;float a2=l2-rr*rr;float il2=1./l2;
+  vec3 pa=p-a;float y=dot(pa,ba);float z=y-l2;vec3 xv=pa*l2-ba*y;float x2=dot(xv,xv);float y2=y*y*l2;float z2=z*z*l2;
+  float k=sign(rr)*rr*rr*x2;
+  if(sign(z)*a2*z2>k) return sqrt(x2+z2)*il2-r2;
+  if(sign(y)*a2*y2<k) return sqrt(x2+y2)*il2-r1;
+  return (sqrt(x2*a2*il2)+y*rr)*il2-r1;
+}
+float sdHeart(vec2 p){
+  p.x=abs(p.x);
+  if(p.y+p.x>1.0) return sqrt(dot2(p-vec2(0.25,0.75)))-sqrt(2.0)/4.0;
+  return sqrt(min(dot2(p-vec2(0.0,1.0)),dot2(p-0.5*max(p.x+p.y,0.0))))*sign(p.x-p.y);
+}
+float sdStar5(vec2 p,float r,float rf){
+  const vec2 k1=vec2(0.809016994375,-0.587785252292);
+  const vec2 k2=vec2(-0.809016994375,-0.587785252292);
+  p.x=abs(p.x);
+  p-=2.0*max(dot(k1,p),0.0)*k1;
+  p-=2.0*max(dot(k2,p),0.0)*k2;
+  p.x=abs(p.x);
+  p.y-=r;
+  vec2 ba=rf*vec2(-k1.y,k1.x)-vec2(0,1);
+  float h=clamp(dot(p,ba)/dot(ba,ba),0.0,r);
+  return length(p-ba*h)*sign(p.y*ba.x-p.x*ba.y);
+}
+float sdZ(vec2 p){return min(min(sdSeg(p,vec2(-.36,.4),vec2(.36,.4)),sdSeg(p,vec2(.36,.4),vec2(-.36,-.4))),sdSeg(p,vec2(-.36,-.4),vec2(.36,-.4)))-0.12;}
+
+// x = lid/socket clay, y = eyeball
+vec2 eye(vec3 p,float s,float lidT,float lidB,float tilt){
+  vec3 q=p-vec3(s*EX,EY,EZ);
+  float ball=length(q)-RE;
+  q.x*=s;
+  q.xy=rot(tilt)*q.xy;
+  float sph=length(q)-RL;
+  float sphU=length(q)-(RL+0.014);
+  float sphB=length(q)-(RL-0.006);
+  vec3 nU=normalize(vec3(0.,1.,0.42));
+  float oU=mix(0.62,-0.03,lidT)*RL;
+  float up=smax(sphU,oU-dot(q,nU),0.022);
+  vec3 nB=normalize(vec3(0.,-1.,0.38));
+  float oB=mix(0.70,0.03,lidB)*RL;
+  float lo=smax(sphB,oB-dot(q,nB),0.03);
+  float sock=smax(sph,q.z-0.05,0.04);
+  return vec2(min(min(up,lo),sock),ball);
+}
+
+float mouth2D(vec2 p,out float yU,out float yL){
+  float open=uMouth.x,smile=uMouth.y,w=uMouth.z;
+  float t=clamp(p.x/w,-1.,1.);float tt=t*t;
+  float env=sqrt(max(1.-tt,0.));
+  yU=MY+smile*0.14*tt+open*0.05*(1.-tt)-open*0.02;
+  yL=yU-0.014-open*0.40*env;
+  float dy=max(p.y-yU,yL-p.y);
+  float dx=abs(p.x)-w;
+  return max(dx,dy)*0.7;
+}
+
+float brow(vec3 p,float s,float by,float tilt){
+  vec3 q=p-vec3(s*0.38,0.64+by,0.075);
+  q.x*=s;
+  q.xy=rot(tilt)*q.xy;
+  q.y+=1.1*q.x*q.x;
+  q.z*=1.25;
+  return sdCap(q,vec3(-0.15,0.,0.),vec3(0.15,0.,0.),0.043)*0.75;
+}
+
+float teeth(vec3 p,float yU,float yL){
+  float tw=0.1;
+  float back=(1.-smoothstep(0.3,0.6,uMouth.x))*0.13;
+  p.z+=back;
+  float id=clamp(floor(p.x/tw+.5),-4.,4.);
+  float qx=p.x-id*tw;
+  float up=sdRBox(vec3(qx,p.y-(yU-0.035),p.z+0.035),vec3(tw*0.47,0.05,0.045),0.03);
+  float lo=sdRBox(vec3(qx,p.y-(yL+0.03),p.z+0.06),vec3(tw*0.46,0.04,0.045),0.028);
+  return max(min(up,lo),abs(p.x)-uMouth.z*0.84);
+}
+
+// One continuous tongue: a rounded strip swept along an arc that starts inside the mouth,
+// rolls forward over the lower lip and hangs down. tg slides the tip out along that arc.
+float tongue(vec3 p,float yL){
+  float tg=uMouth.w;
+  // the tongue that lives in the mouth
+  float rest=sdEll(p-vec3(0.,yL+0.05,-0.13),vec3(0.19,0.075,0.11));
+  if(tg<0.01) return rest;
+  // the same tongue sliding out: a strip swept along an arc from the mouth floor, over the lower lip, then down
+  float x0=0.03*tg;
+  vec2 C=vec2(yL-0.14,0.02);
+  float R=0.17;
+  vec2 q=p.yz-C;
+  float r=length(q);
+  float s=R*atan(q.y,q.x);
+  float w=mix(0.13,0.13,tg);
+  float sEnd=R*mix(radians(-15.),radians(95.),tg);   // where the rounded tip ends
+  float s1=sEnd-w;
+  float s0=min(R*radians(-50.),s1);
+  float x=p.x-x0;
+  float ds=s-clamp(s,s0,s1);
+  float d2=length(vec2(x,ds))-w*(1.+0.3*smoothstep(s1,s0,s));
+  float dr=abs(r-R)-0.022;
+  vec2 ww=vec2(d2,dr);
+  float d=min(max(ww.x,ww.y),0.)+length(max(ww,0.))-0.018;
+  d+=0.012*exp(-x*x*900.)*smoothstep(R-0.01,R+0.03,r)*smoothstep(s0,s0+0.05,s)*smoothstep(sEnd,sEnd-0.12,s);
+  return smin(d*0.8,rest,0.05);
+}
+
+float glasses(vec3 g){
+  vec3 q=g; q.z+=(1.-uDress.x)*0.6;
+  float zz=EZ+0.27;
+  float d=1e3;
+  for(int i=0;i<2;i++){
+    float s=float(i)*2.-1.;
+    vec3 e=q-vec3(s*EX,EY,zz);
+    d=min(d,length(vec2(length(e.xy)-0.33,e.z))-0.032);
+    d=min(d,sdCap(q,vec3(s*(EX+0.32),EY+0.03,zz),vec3(s*(EX+0.48),EY+0.07,0.0),0.026));
+  }
+  d=min(d,sdCap(q,vec3(-0.06,EY+0.07,zz+0.01),vec3(0.06,EY+0.07,zz+0.01),0.03));
+  return d;
+}
+float stache(vec3 g){
+  vec3 q=g; q.z+=(1.-uDress.y)*0.4;
+  q.x=abs(q.x);
+  q-=vec3(0.15,-0.31,0.13);
+  q.xy=rot(-0.3)*q.xy;
+  q.y-=2.6*max(q.x,0.)*max(q.x,0.);
+  return sdEll(q,vec3(0.16,0.055,0.05))*0.8;
+}
+float bow(vec3 g){
+  vec3 q=g; q.z+=(1.-uDress.z)*0.45;
+  q-=vec3(0.66,1.02,0.06);
+  q.xy=rot(-0.35)*q.xy;
+  vec3 a=q; a.x=abs(a.x); a-=vec3(0.14,0.,0.); a.xy=rot(0.35)*a.xy;
+  float loops=sdEll(a,vec3(0.15,0.09,0.06));
+  float knot=length(q)-0.065;
+  return smin(loops,knot,0.03)*0.85;
+}
+float hat(vec3 g){
+  vec3 q=g; q.z+=(1.-uDress.w)*0.55;
+  float c=sdRoundCone(q,vec3(-0.12,0.98,-0.03),vec3(-0.24,1.42,0.0),0.3,0.02);
+  float pom=length(q-vec3(-0.25,1.45,0.0))-0.075;
+  return min(c,pom);
+}
+
+float gFast=0.;   // bounding shortcuts only for the primary ray; shadows and AO need true distances
+vec3 toFace(vec3 p){return vec3((p.xy-uFaceOff)/uSquish.y,p.z/uSquish.x);}
+
+vec2 faceMap(vec3 p){
+  vec3 f=toFace(p);
+  if(abs(f.x)>1.75||f.y>1.6||f.y<-1.65) return vec2(p.z,1.);
+  float sc=min(uSquish.x,uSquish.y);
+  float open=uMouth.x;
+  vec3 g=f; g.z+=uSink*0.62;               // features slide back into the wall
+  float dome=sdEll(g-vec3(0.,0.02,-1.0),vec3(1.2,1.4,1.1));
+  float skin=smin(f.z,dome,0.35*(1.-0.7*uSink));
+  float ch=uBubble.z;
+  float bump=sdEll(g-vec3(0.,MY-0.05-open*0.13,-0.2+ch*0.05),vec3(uMouth.z+0.17+ch*0.12,0.13+open*0.2+ch*0.06,0.3));
+  skin=smin(skin,bump,0.12);
+  // bnd collects safe lower bounds for parts skipped far from the point (material 0, never a hit)
+  float bnd=1e3;
+  vec2 eL=vec2(1e3),eR=vec2(1e3);
+  float bL=length(g-vec3(-EX,EY,EZ))-(RL+0.02), bR=length(g-vec3(EX,EY,EZ))-(RL+0.02);
+  if(gFast>0.5&&bL>0.08) bnd=min(bnd,bL); else eL=eye(g,-1.,uLidT.x,uLidB.x,uLidTilt.x);
+  if(gFast>0.5&&bR>0.08) bnd=min(bnd,bR); else eR=eye(g, 1.,uLidT.y,uLidB.y,uLidTilt.y);
+  skin=smin(skin,min(eL.x,eR.x),0.07);
+  // only work on the mouth, teeth and tongue near the mouth
+  vec2 mb=abs(g.xy-vec2(0.,MY-0.2))-vec2(uMouth.z+0.14,0.52);
+  float mbox=length(max(mb,0.));
+  float yU=MY,yL=MY;
+  bool nearM=gFast<0.5||mbox<0.06;
+  if(nearM){
+    float m2=mouth2D(g.xy,yU,yL);
+    float cav=smax(m2,-(g.z+0.3),0.04);
+    skin=smax(skin,-cav-uSink*0.2,0.012+0.03*open);
+  }
+  vec2 res=vec2(skin,1.);
+  float ball=min(eL.y,eR.y); if(ball<res.x) res=vec2(ball,2.);
+  vec2 bb=abs(g.xy-vec2(0.,0.68))-vec2(0.64,0.28);
+  float bbox=length(max(bb,0.));
+  float br=1e3;
+  if(gFast<0.5||bbox<0.06) br=min(brow(g,-1.,uBrowY.x,uBrowTilt.x),brow(g,1.,uBrowY.y,uBrowTilt.y)); else bnd=min(bnd,bbox);
+  if(uDress.y>0.01) br=min(br,stache(g));
+  if(br<res.x) res=vec2(br,3.);
+  if(nearM){
+    float te=teeth(g,yU,yL); if(te<res.x) res=vec2(te,4.);
+    float to=tongue(g,yL); if(to<res.x) res=vec2(to,5.);
+  } else bnd=min(bnd,mbox);
+  if(uDress.x>0.01){float d=glasses(g); if(d<res.x) res=vec2(d,6.);}
+  if(uDress.z>0.01){float d=bow(g); if(d<res.x) res=vec2(d,7.);}
+  if(uDress.w>0.01){float d=hat(g); if(d<res.x) res=vec2(d,8.);}
+  if(uBubble.x>0.005){
+    vec3 q=g-vec3(0.,MY-0.02,0.15+uBubble.x*0.82);
+    float wb=uBubble.y*sin(uTime*9.)*0.06;
+    q.xy*=vec2(1.+wb,1.-wb);
+    float d=(length(q)-uBubble.x)*0.9;
+    if(d<res.x) res=vec2(d,9.);
+  }
+  if(bnd<res.x) res=vec2(bnd,0.);
+  res.x*=sc;
+  return res;
+}
+
+float wallH(vec2 xy){
+  float h=0.;
+  for(int i=0;i<4;i++){
+    vec4 r=uRip[i];
+    float age=uTime-r.z;
+    if(r.w>0.&&age>0.&&age<3.){
+      float x=length(xy-r.xy)-age*1.3;
+      h+=r.w*0.035*sin(x*16.)*exp(-x*x*10.)*exp(-age*1.1)*smoothstep(0.,0.25,age);
+    }
+  }
+  for(int i=0;i<10;i++){
+    vec4 d=uDent[i];
+    if(d.z>0.001){vec2 v=xy-d.xy;h-=d.z*0.055*exp(-dot(v,v)*130.);}
+  }
+  return h;
+}
+
+vec2 puffs(vec3 p){
+  vec2 res=vec2(1e3,0.);
+  for(int i=0;i<8;i++){
+    vec4 u=uPuff[i];
+    if(u.z<0.005) continue;
+    vec3 q=p-vec3(u.xy,0.3);
+    float bound=length(q)-u.z*1.25;
+    if(bound>0.05){res.x=min(res.x,bound);continue;}
+    q/=u.z;
+    q.xy=rot(sin(uTime*3.+float(i)*1.7)*0.35)*q.xy;
+    float ty=u.w,d;
+    if(ty>3.5){ d=length(q)-0.5; }
+    else {
+      float d2;
+      if(ty<0.5) d2=sdHeart(q.xy*1.15+vec2(0.,0.58))/1.15;
+      else if(ty<1.5) d2=sdStar5(q.xy,0.7,0.45);
+      else if(ty<2.5) d2=sdZ(q.xy);
+      else d2=length(vec2(q.x*(1.+max(q.y+0.1,0.)*1.6),q.y+0.1))-0.45;
+      vec2 w=vec2(d2+0.12,abs(q.z)-0.1);
+      d=min(max(w.x,w.y),0.)+length(max(w,0.))-0.12;
+    }
+    d*=u.z*0.8;
+    if(d<res.x) res=vec2(d,11.+ty);
+  }
+  return res;
+}
+
+float gNoPuff=0.;
+vec2 map(vec3 p){
+  if(uFx>0.5) p.z-=wallH(p.xy);
+  vec2 res=faceMap(p);
+  if(uPuffOn>0.5&&gNoPuff<0.5){vec2 pf=puffs(p); if(pf.x<res.x) res=pf;}
+  if(uCandy.w>0.){float d=length(p-uCandy.xyz)-uCandy.w; if(d<res.x) res=vec2(d,10.);}
+  if(uFx>0.5) res.x*=0.7;
+  return res;
+}
+
+vec3 calcNormal(vec3 p){
+  const vec2 e=vec2(1.,-1.)*0.0012;
+  return normalize(e.xyy*map(p+e.xyy).x+e.yyx*map(p+e.yyx).x+e.yxy*map(p+e.yxy).x+e.xxx*map(p+e.xxx).x);
+}
+float softShadow(vec3 ro,vec3 rd){
+  float res=1.,t=0.012;
+  for(int i=0;i<28;i++){
+    if(float(i)>=uShSteps) break;
+    vec3 p=ro+rd*t;
+    if(p.z>0.95) break;
+    vec2 hm=map(p);float h=hm.x;
+    if(hm.y>0.5) res=min(res,5.*h/t);
+    t+=clamp(h,0.012,0.1);
+    if(res<0.003) break;
+  }
+  res=clamp(res,0.,1.);
+  return res*res*(3.-2.*res);
+}
+float calcAO(vec3 p,vec3 n){
+  float o=0.,s=1.;
+  for(int i=1;i<=5;i++){if(float(i)>uAOn) break;float h=0.015+0.045*float(i);o+=(h-map(p+n*h).x)*s;s*=0.72;}
+  return clamp(1.-1.5*o,0.,1.);
+}
+vec3 clay(vec3 alb,vec3 n,vec3 H,float wrap,float sh,float occ,float fres,float specA,float specP){
+  vec3 deep=alb*alb*1.1;
+  vec3 col=mix(mix(deep,alb,0.35)*0.62,alb*KEY*wrap*0.88,sh);
+  col+=alb*mix(vec3(0.42),alb*1.1+0.06,0.8)*(0.62+0.22*n.y)*occ*0.66;
+  col+=alb*alb*0.22*(1.-wrap)*occ;
+  col+=KEY*pow(max(dot(n,H),0.),specP)*specA*sh;
+  col+=alb*fres*0.18*occ;
+  return col*mix(1.,occ,0.55);
+}
+
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*uRes)/uRes.y;
+  vec3 P=vec3(uv*2.*uHalfH,0.);
+  vec3 ro=vec3(uCam,CAMD);
+  vec3 rd=normalize(P-ro);
+  float t=(ro.z-0.95)/(-rd.z);
+  float tMax=(ro.z+0.45)/(-rd.z);
+  vec2 h=vec2(1.);
+  bool hit=false;
+  // plain wall far from the face: shade it directly, no ray marching
+  bool need=uFx>0.5;
+  vec3 fP=toFace(P);
+  vec2 el=vec2(fP.x/1.95,(fP.y+0.05)/2.1);
+  if(dot(el,el)<1.) need=true;
+  for(int i=0;i<8;i++){vec4 u=uPuff[i]; if(u.z>0.005&&length(P.xy-u.xy)<u.z*1.6+0.4) need=true;}
+  if(uCandy.w>0.&&length(P.xy-uCandy.xy)<0.6) need=true;
+  if(!need){
+    vec3 L0=normalize(vec3(-0.45,0.65,0.75));
+    vec3 n0=vec3(0.,0.,1.);
+    vec3 H0=normalize(L0-rd);
+    float wr=clamp((dot(n0,L0)+0.45)/1.45,0.,1.);
+    float fr=pow(1.-max(dot(n0,-rd),0.),3.);
+    vec3 c0=clay(uSkin,n0,H0,wr,1.,1.,fr,0.16,26.);
+    c0*=1.06-0.10*length(P.xy-vec2(-0.6,1.1))*0.6;
+    c0*=1.-0.22*dot(uv,uv);
+    c0=c0/(1.+0.12*c0);
+    c0=pow(clamp(c0,0.,1.),vec3(1./2.2));
+    c0+=(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.;
+    gl_FragColor=vec4(c0,1.);
+    return;
+  }
+  gFast=1.;
+  for(int i=0;i<120;i++){
+    if(float(i)>=uSteps) break;
+    vec3 p=ro+rd*t;
+    h=map(p);
+    if(h.x<0.0007){hit=true;break;}
+    t+=h.x*0.85;
+    if(t>tMax) break;
+  }
+  vec3 p=ro+rd*t;
+  gFast=0.;
+  vec3 n=hit?calcNormal(p):vec3(0.,0.,1.);
+  if(!hit){p=P;h.y=1.;}
+  vec3 L=normalize(vec3(-0.45,0.65,0.75));
+  vec3 V=-rd;
+  vec3 H=normalize(L+V);
+  gNoPuff=1.;
+  gFast=1.;
+  float sh=softShadow(p+n*0.003,L);
+  gFast=0.;
+  float occ=calcAO(p,n);
+  gNoPuff=0.;
+  float wrap=clamp((dot(n,L)+0.45)/1.45,0.,1.);
+  float fres=pow(1.-max(dot(n,V),0.),3.);
+  vec3 pw=p; if(uFx>0.5) pw.z-=wallH(p.xy);
+  vec3 f=toFace(pw);
+  vec3 g=f; g.z+=uSink*0.62;
+  vec3 skin=uSkin;
+  vec3 col;
+  float mat=h.y;
+  float spot=1.06-0.10*length(p.xy-vec2(-0.6,1.1))*0.6;
+
+  if(mat<1.5){
+    float yU,yL; float m2=mouth2D(g.xy,yU,yL);
+    float inside=(1.-smoothstep(-0.006,0.022,m2))*smoothstep(0.075,-0.02,g.z)*(1.-uSink);
+    vec3 alb=mix(skin,vec3(0.10,0.012,0.018),inside*0.97);
+    vec2 cb=vec2(abs(g.x)-0.62,g.y+0.22);
+    float bl=uBlush*exp(-dot(cb,cb)*28.)*(1.-inside);
+    alb=mix(alb,vec3(0.95,0.16,0.3),bl*0.6);
+    col=clay(alb,n,H,wrap,sh,occ,fres,0.16*(1.-inside)+0.08*bl,26.);
+  } else if(mat<2.5){
+    float s=g.x<0.?-1.:1.;
+    vec3 q=normalize(g-vec3(s*EX,EY,EZ));
+    vec2 lk=s<0.?uLook.xy:uLook.zw;
+    vec3 lv=normalize(vec3(lk,1.));
+    float ang=acos(clamp(dot(q,lv),-1.,1.));
+    float irisR=0.43,pupR=0.22*uPupil;
+    vec3 white=vec3(0.93,0.93,0.95);
+    vec3 ic=mix(uIris*1.25,uIris*0.55,smoothstep(pupR,irisR,ang));
+    ic=mix(ic,uIris*0.25,smoothstep(irisR-0.07,irisR,ang));
+    float iris=1.-smoothstep(irisR-0.012,irisR+0.012,ang);
+    float pup=1.-smoothstep(pupR-0.012,pupR+0.012,ang);
+    vec3 alb=mix(white,ic,iris);
+    alb=mix(alb,vec3(0.008),pup);
+    col=alb*KEY*wrap*0.9*mix(0.3,1.,sh);
+    col+=alb*vec3(0.55,0.58,0.66)*(0.6+0.25*n.y)*occ*0.55;
+    col*=mix(1.,occ,0.6);
+    vec3 R=reflect(rd,n);
+    float soft=smoothstep(0.93,0.99,dot(R,L));
+    float sharp=pow(max(dot(n,H),0.),180.)*2.2;
+    col+=(soft*0.55+sharp)*sh*KEY;
+    col+=fres*0.12*occ;
+  } else if(mat<3.5){
+    vec3 alb=uBrowCol;
+    col=alb*KEY*wrap*0.9*mix(0.35,1.,sh)+alb*0.5*occ;
+    col+=pow(max(dot(n,H),0.),30.)*0.22*sh;
+    col*=mix(1.,occ,0.5);
+  } else if(mat<4.5){
+    vec3 alb=vec3(0.92,0.91,0.88);
+    col=alb*wrap*0.85*mix(0.35,1.,sh)+alb*0.45*occ;
+    col+=pow(max(dot(n,H),0.),70.)*0.7*sh;
+    col*=mix(1.,occ,0.75);
+  } else if(mat<5.5){
+    vec3 alb=mix(vec3(0.82,0.16,0.26),skin,0.2);
+    col=alb*wrap*0.9*mix(0.4,1.,sh)+alb*alb*0.5*occ;
+    col+=pow(max(dot(n,H),0.),40.)*0.35*sh;
+    col*=mix(1.,occ,0.6);
+  } else if(mat<6.5){
+    vec3 alb=vec3(0.025,0.025,0.035);
+    col=alb*wrap*mix(0.4,1.,sh)+alb*occ;
+    col+=pow(max(dot(n,H),0.),90.)*1.1*sh+fres*0.25*occ;
+  } else if(mat<7.5){
+    col=clay(vec3(0.85,0.06,0.16),n,H,wrap,sh,occ,fres,0.3,40.);
+  } else if(mat<8.5){
+    float pom=step(1.38,g.y);
+    float stripe=step(0.5,fract(g.y*7.-g.x*2.5));
+    vec3 alb=mix(vec3(0.95,0.94,0.9),clamp(uIris*1.3,0.,1.),stripe*(1.-pom));
+    col=clay(alb,n,H,wrap,sh,occ,fres,0.25,35.);
+  } else if(mat<9.5){
+    vec3 alb=vec3(0.95,0.38,0.6);
+    col=clay(alb,n,H,wrap,sh,occ,fres,0.9,90.);
+    col+=fres*vec3(1.,0.85,0.92)*0.35;
+  } else if(mat<10.5){
+    vec3 q=pw-uCandy.xyz;
+    float sw=step(0.5,fract(atan(q.y,q.x)/6.2832*5.+length(q.xy)/max(uCandy.w,0.01)*1.4+uTime*0.6));
+    vec3 alb=mix(vec3(0.95,0.95,0.93),vec3(0.9,0.06,0.14),sw);
+    col=clay(alb,n,H,wrap,sh,occ,fres,0.9,90.);
+  } else {
+    float ty=mat-11.;
+    vec3 alb=ty<0.5?vec3(0.9,0.06,0.18):ty<1.5?vec3(1.,0.72,0.06):ty<2.5?vec3(0.95,0.95,0.97):ty<3.5?vec3(0.35,0.7,1.):vec3(0.95,0.38,0.6);
+    col=clay(alb,n,H,wrap,sh,occ,fres,0.45,50.);
+  }
+  col*=spot;
+  float vig=1.-0.22*dot(uv,uv);
+  col*=vig;
+  col=col/(1.+0.12*col);
+  col=pow(clamp(col,0.,1.),vec3(1./2.2));
+  col+=(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.;
+  gl_FragColor=vec4(col,1.);
+}
+</script>
+
+<script>
+(function(){
+"use strict";
+const THEMES=[
+  {name:"Tangerine",skin:"#F4731F",iris:"#3D8BE0",ink:"#5a2206"},
+  {name:"Bubblegum",skin:"#EC5FA4",iris:"#E39A33",ink:"#5c0f36"},
+  {name:"Lagoon",   skin:"#46C3CB",iris:"#2A63B8",ink:"#0d4448"},
+  {name:"Sunshine", skin:"#F8C51C",iris:"#8A5530",ink:"#5a4100"},
+  {name:"Grape",    skin:"#9C7CEB",iris:"#F0B23A",ink:"#2b1660"}
+];
+const MY=-0.47;
+const reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const hex=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255);
+const lin=c=>c.map(v=>Math.pow(v,2.2));
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const store={get(k){try{return localStorage.getItem(k);}catch(e){return null;}},set(k,v){try{localStorage.setItem(k,v);}catch(e){}}};
+
+// ---------- WebGL ----------
+const canvas=document.getElementById("gl");
+const gl=canvas.getContext("webgl",{antialias:false,alpha:false,powerPreference:"high-performance"});
+if(!gl){document.getElementById("fallback").hidden=false;return;}
+function sh(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));return s;}
+const prog=gl.createProgram();
+gl.attachShader(prog,sh(gl.VERTEX_SHADER,"attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}"));
+gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,document.getElementById("fs").textContent));
+gl.linkProgram(prog);
+if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+gl.useProgram(prog);
+const buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
+const aLoc=gl.getAttribLocation(prog,"a");gl.enableVertexAttribArray(aLoc);gl.vertexAttribPointer(aLoc,2,gl.FLOAT,false,0,0);
+const U={};
+["uRes","uTime","uHalfH","uPupil","uSink","uBlush","uFx","uPuffOn","uSkin","uBrowCol","uIris","uLook","uLidT","uLidB","uLidTilt",
+ "uBrowY","uBrowTilt","uMouth","uSquish","uFaceOff","uCam","uBubble","uCandy","uDress","uSteps","uShSteps","uAOn"].forEach(n=>U[n]=gl.getUniformLocation(prog,n));
+U.uRip=gl.getUniformLocation(prog,"uRip[0]");U.uDent=gl.getUniformLocation(prog,"uDent[0]");U.uPuff=gl.getUniformLocation(prog,"uPuff[0]");
+
+const DPR=Math.min(window.devicePixelRatio||1,2);
+const QP=parseFloat(new URLSearchParams(location.search).get("q"));
+const MOBILE=matchMedia("(pointer: coarse)").matches||Math.min(innerWidth,innerHeight)<600;
+const QUAL=MOBILE?{steps:80,sh:16,ao:3}:{steps:120,sh:28,ao:5};
+const MIN_SCALE=MOBILE?0.75:0.55, MAX_SCALE=MOBILE?Math.min(DPR,1.5):DPR;
+let scale=QP||(MOBILE?Math.min(DPR,1.25):Math.min(DPR,1.25)*0.85), W=0, H=0, halfH=1.5, halfW=1.5;
+function resize(){
+  W=innerWidth;H=innerHeight;
+  halfH=Math.max(1.5,1.3*H/W); halfW=halfH*W/H;
+  canvas.width=Math.max(2,Math.round(W*scale));canvas.height=Math.max(2,Math.round(H*scale));
+  gl.viewport(0,0,canvas.width,canvas.height);
+}
+addEventListener("resize",resize);resize();
+
+// ---------- springs ----------
+class Spring{constructor(v,k=140,c){this.v=v;this.t=v;this.vel=0;this.k=k;this.c=c??2*Math.sqrt(k);}
+  step(dt){const a=this.k*(this.t-this.v)-this.c*this.vel;this.vel+=a*dt;this.v+=this.vel*dt;}}
+const S={};
+const sp=(n,v,k,c)=>{S[n]=new Spring(v,k,c);};
+["lidTL","lidTR"].forEach(n=>sp(n,-0.12,420));
+["lidBL","lidBR"].forEach(n=>sp(n,-0.12,260));
+["tiltL","tiltR","browTL","browTR"].forEach(n=>sp(n,0,180));
+["browYL","browYR"].forEach(n=>sp(n,0,200,16));
+sp("open",0,170,17);sp("smile",0.45,140);sp("width",0.5,140);sp("tongue",0,120,15);
+sp("pupil",1,120);sp("sqz",1,230,7.5);sp("sqxy",1,230,9);
+["lookLX","lookLY","lookRX","lookRY"].forEach(n=>sp(n,0,260,26));
+sp("faceX",0,40);sp("faceY",0,40);sp("camX",0,30);sp("camY",0,30);
+sp("sink",0,90,13);sp("homeS",1,40);sp("blush",0,30);sp("cheek",0,60);
+["dG","dM","dB","dH"].forEach(n=>sp(n,0,120,9));
+const col={skin:lin(hex(THEMES[0].skin)),iris:lin(hex(THEMES[0].iris))};
+let theme=0, colTarget={skin:col.skin.slice(),iris:col.iris.slice()};
+
+// ---------- sound ----------
+const Sfx=(()=>{
+  let ctx=null, master=null, on=true, noiseBuf=null;
+  function ensure(){
+    if(!ctx){try{ctx=new (window.AudioContext||window.webkitAudioContext)();master=ctx.createGain();master.gain.value=0.5;master.connect(ctx.destination);}catch(e){ctx=null;}}
+    if(ctx&&ctx.state==="suspended") ctx.resume().catch(()=>{});
+  }
+  const ok=()=>on&&ctx&&ctx.state==="running";
+  function env(g,t,a,d,peak){g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(peak,t+a);g.gain.exponentialRampToValueAtTime(0.0001,t+a+d);}
+  function osc(type,f0,f1,dur,peak,delay=0){
+    if(!ok())return;const t=ctx.currentTime+delay;const o=ctx.createOscillator(),g=ctx.createGain();
+    o.type=type;o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(Math.max(20,f1),t+dur);
+    env(g,t,0.01,dur,peak);o.connect(g);g.connect(master);o.start(t);o.stop(t+dur+0.05);
+  }
+  function noise(dur,peak,fType,f0,f1,q=1,delay=0){
+    if(!ok())return;const t=ctx.currentTime+delay;
+    if(!noiseBuf){noiseBuf=ctx.createBuffer(1,ctx.sampleRate*2,ctx.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;}
+    const s=ctx.createBufferSource();s.buffer=noiseBuf;const f=ctx.createBiquadFilter();f.type=fType;f.Q.value=q;
+    f.frequency.setValueAtTime(f0,t);f.frequency.exponentialRampToValueAtTime(Math.max(30,f1),t+dur);
+    const g=ctx.createGain();env(g,t,0.01,dur,peak);s.connect(f);f.connect(g);g.connect(master);s.start(t);s.stop(t+dur+0.05);
+  }
+  function voice(f0,f1,dur,peak,formants,delay=0){
+    if(!ok())return;const t=ctx.currentTime+delay;const o=ctx.createOscillator();o.type="sawtooth";
+    o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f1,t+dur);
+    const g=ctx.createGain();env(g,t,0.03,dur,peak);
+    formants.forEach(([ff,q,a])=>{const b=ctx.createBiquadFilter();b.type="bandpass";b.frequency.value=ff;b.Q.value=q;const ga=ctx.createGain();ga.gain.value=a;o.connect(b);b.connect(ga);ga.connect(g);});
+    g.connect(master);o.start(t);o.stop(t+dur+0.1);
+  }
+  return {ensure,ok,get on(){return on;},set on(v){on=v;},
+    squish(){noise(0.18,0.35,"lowpass",1400,180,1.2);osc("sine",230,90,0.16,0.25);},
+    squelch(){noise(0.08,0.1,"lowpass",900,250,2);},
+    boing(){
+      if(!ok())return;const t=ctx.currentTime;const o=ctx.createOscillator(),g=ctx.createGain(),l=ctx.createOscillator(),lg=ctx.createGain();
+      o.type="sine";o.frequency.setValueAtTime(160,t);o.frequency.exponentialRampToValueAtTime(420,t+0.12);o.frequency.exponentialRampToValueAtTime(300,t+0.5);
+      l.frequency.value=16;lg.gain.setValueAtTime(60,t);lg.gain.exponentialRampToValueAtTime(1,t+0.5);l.connect(lg);lg.connect(o.frequency);
+      env(g,t,0.01,0.5,0.3);o.connect(g);g.connect(master);o.start(t);l.start(t);o.stop(t+0.6);l.stop(t+0.6);
+    },
+    giggle(){for(let i=0;i<6;i++){const f=650+Math.random()*250-i*30;voice(f,f*0.8,0.07,0.28,[[900,6,1],[2200,8,0.5]],i*0.085);}},
+    pop(){noise(0.05,0.5,"highpass",2000,800,0.7);osc("sine",900,180,0.08,0.3);},
+    hic(){osc("sine",420,880,0.07,0.3);noise(0.04,0.15,"bandpass",1800,1500,3);},
+    ah(){voice(220,300,0.45,0.22,[[750,5,1],[1200,6,0.6]]);},
+    choo(){noise(0.35,0.55,"bandpass",3200,1800,1.2);voice(260,180,0.25,0.18,[[350,5,1],[900,6,0.4]]);},
+    yawn(){voice(320,170,1.3,0.22,[[700,5,1],[1100,6,0.5]]);},
+    snore(){noise(0.9,0.14,"lowpass",420,200,4);osc("sawtooth",70,60,0.9,0.05);},
+    boo(){voice(200,320,0.35,0.3,[[600,5,1],[1000,6,0.5]]);},
+    hmph(){voice(150,110,0.25,0.25,[[400,5,1],[900,6,0.4]]);},
+    yum(){voice(260,240,0.5,0.22,[[300,6,1],[2000,8,0.2]]);},
+    chomp(){osc("sine",180,90,0.06,0.35);noise(0.05,0.2,"lowpass",800,300,1);},
+    sparkle(){[0,0.07,0.14].forEach((d,i)=>osc("triangle",1200+i*300,1500+i*300,0.12,0.12,d));},
+    slide(up){osc("sine",up?200:500,up?600:150,0.4,0.15);},
+    babble(n){for(let i=0;i<n;i++){const f=320+Math.random()*180;voice(f,f*(0.85+Math.random()*0.3),0.13,0.22,[[500+Math.random()*500,5,1],[1400+Math.random()*900,7,0.5]],i*0.16);}},
+    tick(){osc("triangle",700,520,0.05,0.1);}
+  };
+})();
+
+// ---------- speech ----------
+const sayEl=document.getElementById("say");
+let sayTimer=0;
+function showSay(text,ms){sayEl.textContent=text;sayEl.classList.add("show");clearTimeout(sayTimer);sayTimer=setTimeout(()=>sayEl.classList.remove("show"),ms);}
+function pickVoice(){
+  try{const vs=speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang));
+    return vs.find(v=>/samantha|google us english|zira|aria|jenny|female/i.test(v.name))||vs[0]||null;}catch(e){return null;}
+}
+const Voice={until:0,kick:0,
+  say(text){
+    text=String(text).slice(0,180);
+    const words=text.split(/\s+/).filter(Boolean).length||1;
+    const est=500+words*340;
+    const now=performance.now();
+    this.until=now+est;
+    showSay(text,est+1600);
+    if(!Sfx.on) return;
+    let started=false;
+    const fallback=()=>{ if(!started){ Sfx.babble(Math.min(14,words*2)); } };
+    if("speechSynthesis" in window){
+      try{
+        speechSynthesis.cancel();
+        const u=new SpeechSynthesisUtterance(text);
+        u.pitch=1.9;u.rate=1.06;
+        const v=pickVoice(); if(v) u.voice=v;
+        u.onstart=()=>{started=true;this.until=performance.now()+est+300;};
+        u.onboundary=()=>{this.kick=performance.now();};
+        u.onend=()=>{this.until=Math.min(this.until,performance.now()+120);};
+        u.onerror=()=>fallback();
+        speechSynthesis.speak(u);
+        setTimeout(fallback,700);
+        return;
+      }catch(e){}
+    }
+    Sfx.babble(Math.min(14,words*2));
+  }
+};
+
+// ---------- state ----------
+const mouse={x:innerWidth/2,y:innerHeight*0.42,inside:true,down:false,downX:0,downY:0,moved:false};
+let lastMove=performance.now();
+let act=null;
+let blink=0, blinkT=-1, nextBlink=performance.now()+1800, blinkEye=0;
+let reversals=[], lastDX=0, holdTimer=0, glance=null, nextGlance=0;
+let mood=store.get("squidge-mood")||"happy";
+let name=store.get("squidge-name")||"";
+let blushLevel=0, hicUntil=0, nextHic=0, hicFlash=-9999, shakeUntil=0, bubbleR=0, nextSilly=performance.now()+4000;
+const dress={glasses:false,stache:false,bow:false,hat:false};
+const ripples=[], dents=[], puffs=[];
+let lastDent=null, lastSquelch=0;
+const game={mode:null,score:0,candy:null,hide:null};
+let tSec=0;
+
+function toPlane(cx,cy){return {x:(cx-W/2)/H*2*halfH, y:-(cy-H/2)/H*2*halfH};}
+function planeToScreen(x,y){return {x:x/(2*halfH)*H+W/2, y:-y/(2*halfH)*H+H/2};}
+const faceScale=()=>S.sqxy.v*S.homeS.v;
+function worldToFace(x,y){return {x:(x-S.faceX.v)/faceScale(), y:(y-S.faceY.v)/faceScale()};}
+function faceToWorld(x,y){return {x:x*faceScale()+S.faceX.v, y:y*faceScale()+S.faceY.v};}
+function toFaceCoords(cx,cy){const p=toPlane(cx,cy);return worldToFace(p.x,p.y);}
+function setAct(n,ms,data){act={name:n,until:ms==null?Infinity:performance.now()+ms,start:performance.now(),data:data||{},fired:{}};}
+function once(key,fn){if(act&&!act.fired[key]){act.fired[key]=true;fn();}}
+function busy(){return game.mode||performance.now()<Voice.until;}
+
+function hitTest(cx,cy){
+  const p=toPlane(cx,cy);
+  if(bubbleR>0.05){const b=faceToWorld(0,MY-0.02);if(Math.hypot(p.x-b.x,p.y-b.y)<bubbleR*faceScale()+0.06) return {kind:"bubble"};}
+  if(game.candy&&game.candy.state==="roam"&&Math.hypot(p.x-game.candy.x,p.y-game.candy.y)<0.2) return {kind:"candy"};
+  const f=worldToFace(p.x,p.y);
+  if(S.sink.v>0.85) return {kind:"wall"};
+  for(const s of [-1,1]){ if(Math.hypot(f.x-s*0.37,f.y-0.2)<0.3) return {kind:"eye",side:s}; }
+  if((f.x/1.15)**2+((f.y+0.05)/1.35)**2<1) return {kind:"face"};
+  return {kind:"wall"};
+}
+
+// ---------- effects ----------
+function spawnPuff(type,x,y,vx,vy,size=0.13,life=1.8,orbit=null){
+  if(puffs.length>=8) puffs.shift();
+  puffs.push({type,x,y,vx,vy,size,life,orbit,born:performance.now(),seed:Math.random()*6});
+}
+function addRipple(x,y,amp=1){
+  if(reduced) amp*=0.4;
+  if(ripples.length>=4) ripples.shift();
+  ripples.push({x,y,t0:tSec,amp,hit:false});
+}
+function addDent(x,y){
+  if(dents.length>=10) dents.shift();
+  dents.push({x,y,s:1});
+}
+function hearts(n=3){const m=faceToWorld(0,0.9);for(let i=0;i<n;i++) spawnPuff(0,m.x+(Math.random()-.5)*0.9,m.y-0.3+Math.random()*0.3,(Math.random()-.5)*0.3,0.35+Math.random()*0.2,0.11+Math.random()*0.04,1.9);}
+function stars(n=3){const m=faceToWorld(0,0.9);for(let i=0;i<n;i++) spawnPuff(1,m.x+(Math.random()-.5)*1.1,m.y-0.2+Math.random()*0.3,(Math.random()-.5)*0.5,0.4+Math.random()*0.2,0.12,1.7);}
+
+// ---------- actions ----------
+function wake(){
+  if(act&&(act.name==="sleepy"||act.name==="asleep")){
+    const was=act.name;act=null;
+    if(was==="asleep"){setAct("startle",900); if(name) setTimeout(()=>Voice.say(`Oh! Hi ${name}!`),500);}
+  }
+}
+function tickle(){
+  blushLevel=Math.min(1,blushLevel+0.4);
+  setAct("giggle",1600);hearts(3);
+}
+function laughOrHmph(){ if(mood==="grumpy"){setAct("hmph",900);Sfx.hmph();} else {setAct("laugh",1400);Sfx.giggle();} }
+const tricks={
+  sneeze(){setAct("sneeze",2700);},
+  yawn(){setAct("yawn",2400);},
+  bubble(){bubbleR=0;setAct("bubble",null);},
+  hiccups(){hicUntil=performance.now()+7000;nextHic=performance.now()+300;},
+  peekaboo(){setAct("peekaboo",null);Sfx.slide(false);},
+  giggle(){tickle();}
+};
+function popBubble(){
+  if(!(act&&act.name==="bubble")) return;
+  const m=faceToWorld(0,MY-0.02), r=Math.max(bubbleR,0.1)*faceScale();
+  for(let i=0;i<5;i++){const a=i/5*Math.PI*2+Math.random();spawnPuff(4,m.x+Math.cos(a)*r*0.7,m.y+Math.sin(a)*r*0.7,Math.cos(a)*0.9,Math.sin(a)*0.9,0.06,0.9);}
+  bubbleR=0;Sfx.pop();S.sqz.vel-=6;setAct("surprise",900);
+}
+
+// ---------- games ----------
+const hintEl=document.getElementById("hint");
+function setHint(text){hintEl.textContent=text;hintEl.classList.remove("fade");}
+function bounds(){return {x:Math.max(0.2,halfW-0.25), yTop:halfH-0.35, yBot:-halfH+0.75};}
+function newCandy(){
+  const b=bounds();
+  game.candy={x:(Math.random()*2-1)*b.x,y:b.yBot+Math.random()*(b.yTop-b.yBot),z:0.45,vx:(Math.random()<.5?-1:1)*(0.35+Math.random()*0.25),vy:(Math.random()<.5?-1:1)*(0.3+Math.random()*0.2),r:0.085,state:"roam",t:0};
+}
+function startGame(mode){
+  stopGame(true);
+  game.mode=mode;game.score=0;act=null;lastMove=performance.now();
+  if(mode==="feed"){newCandy();setHint("Click the candy to feed Squidge! 0 of 5");Voice.say(name?`I'm hungry, ${name}!`:"I'm hungry!");}
+  if(mode==="hide"){game.hide={round:1,phase:"sink",t:performance.now(),hx:0,hy:0};setHint("Hide and seek! Find Squidge. 1 of 3");Sfx.slide(false);}
+  syncGameChips();
+}
+function stopGame(silent){
+  game.mode=null;game.candy=null;game.hide=null;
+  if(!silent){setHint("Move around · click the face · rub a cheek · open Play for more");}
+  syncGameChips();
+}
+function hideFound(){
+  const h=game.hide; if(!h||h.phase!=="peek") return;
+  h.phase="found";h.t=performance.now();
+  Sfx.giggle();Sfx.sparkle();stars(4);setAct("giggle",1400);
+  Voice.say(name?`You found me, ${name}!`:"You found me!");
+}
+
+// ---------- input ----------
+addEventListener("pointerdown",()=>Sfx.ensure(),{capture:true});
+addEventListener("pointermove",e=>{
+  const now=performance.now();
+  const dx=e.clientX-mouse.x;
+  mouse.x=e.clientX;mouse.y=e.clientY;mouse.inside=true;
+  if(mouse.down&&Math.hypot(e.clientX-mouse.downX,e.clientY-mouse.downY)>14) mouse.moved=true;
+  lastMove=now;wake();
+  if(act&&act.name==="search") act=null;
+  if(mouse.down&&mouse.moved&&e.target===canvas&&mouse.downKind==="wall"){
+    clearTimeout(holdTimer);
+    const p=toPlane(e.clientX,e.clientY);
+    if(!lastDent||Math.hypot(p.x-lastDent.x,p.y-lastDent.y)>0.05){addDent(p.x,p.y);lastDent=p;
+      if(now-lastSquelch>140){Sfx.squelch();lastSquelch=now;}}
+    return;
+  }
+  if(mouse.down&&mouse.moved) clearTimeout(holdTimer);
+  if(Math.abs(dx)>5&&(!mouse.down||mouse.downKind!=="wall")){
+    const dir=Math.sign(dx);
+    if(lastDX&&dir!==lastDX) reversals.push({t:now,big:Math.abs(dx)>14});
+    lastDX=dir;
+    reversals=reversals.filter(r=>now-r.t<800);
+    const over=hitTest(e.clientX,e.clientY).kind;
+    if(over==="face"&&reversals.length>=4&&!(act&&act.name==="giggle")&&!game.mode){tickle();reversals=[];}
+    else if(over!=="face"&&reversals.filter(r=>r.big).length>=5&&!(act&&act.name==="dizzy")&&!reduced){setAct("dizzy",2600);reversals=[];
+      for(let i=0;i<3;i++) spawnPuff(1,0,0,0,0,0.1,2.6,{a0:i/3*Math.PI*2});}
+  }
+},{passive:true});
+canvas.addEventListener("pointerdown",e=>{
+  mouse.x=e.clientX;mouse.y=e.clientY;mouse.down=true;mouse.moved=false;lastDent=null;
+  mouse.downX=e.clientX;mouse.downY=e.clientY;mouse.downKind=hitTest(e.clientX,e.clientY).kind;lastMove=performance.now();wake();
+  clearTimeout(holdTimer);
+  holdTimer=setTimeout(()=>{ if(mouse.down&&!mouse.moved&&hitTest(mouse.x,mouse.y).kind==="face"&&!game.mode) setAct("strain",null); },420);
+});
+addEventListener("pointerup",e=>{
+  if(!mouse.down) return;
+  mouse.down=false;clearTimeout(holdTimer);
+  if(act&&act.name==="strain"){S.sqz.vel-=9;S.sqxy.vel+=2.5;Sfx.boing();laughOrHmph();return;}
+  if(mouse.moved) return;
+  const h=hitTest(e.clientX,e.clientY);
+  const p=toPlane(e.clientX,e.clientY);
+  if(h.kind==="bubble"){popBubble();return;}
+  if(h.kind==="candy"){const c=game.candy;c.state="fly";c.t=0;c.x0=c.x;c.y0=c.y;Sfx.slide(true);return;}
+  if(game.hide&&game.hide.phase==="peek"&&(h.kind==="face"||h.kind==="eye")){hideFound();return;}
+  if(h.kind==="eye"){setAct("poke",900,{side:h.side});S.sqz.vel-=3;Sfx.squish();}
+  else if(h.kind==="face"){S.sqz.vel-=7;S.sqxy.vel+=2.2;Sfx.squish();laughOrHmph();addRipple(S.faceX.v,S.faceY.v,0.6);}
+  else {addRipple(p.x,p.y,1);Sfx.tick();if(!game.mode&&!(act&&act.name==="bubble")) setAct("surprise",700);}
+});
+addEventListener("pointercancel",()=>{mouse.down=false;clearTimeout(holdTimer);if(act&&act.name==="strain")act=null;});
+canvas.addEventListener("dblclick",e=>{ const k=hitTest(e.clientX,e.clientY).kind; if((k==="face"||k==="eye")&&!game.mode){ setAct("silly",2400); S.sqz.vel-=4; Sfx.boing(); } });
+document.documentElement.addEventListener("pointerleave",e=>{ if(e.pointerType!=="mouse") return; mouse.inside=false; if(!act||act.name!=="asleep") if(!game.mode) setAct("search",null); });
+addEventListener("keydown",e=>{ if(e.code==="Space"&&e.target===document.body){e.preventDefault();pickTheme((theme+1)%THEMES.length);} });
+
+// ---------- UI ----------
+const swWrap=document.getElementById("swatches");
+THEMES.forEach((t,i)=>{
+  const b=document.createElement("button");b.className="sw";b.type="button";b.id="sw-"+t.name.toLowerCase();
+  b.style.setProperty("--c",t.skin);b.setAttribute("aria-label",t.name+" clay");b.title=t.name;
+  b.setAttribute("aria-pressed",i===0?"true":"false");
+  b.addEventListener("click",()=>pickTheme(i));
+  swWrap.appendChild(b);
+});
+function pickTheme(i,quiet){
+  theme=i;const t=THEMES[i];
+  colTarget={skin:lin(hex(t.skin)),iris:lin(hex(t.iris))};
+  document.documentElement.style.setProperty("--skin",t.skin);
+  document.documentElement.style.setProperty("--ink",t.ink);
+  [...swWrap.children].forEach((b,j)=>b.setAttribute("aria-pressed",j===i?"true":"false"));
+  if(!quiet){S.sqz.vel-=5;S.sqxy.vel+=1.5;Sfx.squish();if(!game.mode) setAct("surprise",700);}
+  store.set("squidge-theme",String(i));
+}
+const savedTheme=parseInt(store.get("squidge-theme"),10);
+if(savedTheme>=0&&savedTheme<THEMES.length){pickTheme(savedTheme,true);col.skin=colTarget.skin.slice();col.iris=colTarget.iris.slice();}
+
+// keep UI clicks from reaching the clay
+["dock","panel"].forEach(id=>{const el=document.getElementById(id);["pointerdown","pointerup","dblclick"].forEach(ev=>el.addEventListener(ev,e=>{e.stopPropagation();if(ev==="pointerdown")Sfx.ensure();}));});
+
+const panel=document.getElementById("panel"), playBtn=document.getElementById("playBtn");
+function setPanel(open){panel.hidden=!open;playBtn.setAttribute("aria-expanded",String(open));}
+playBtn.addEventListener("click",()=>setPanel(panel.hidden));
+document.getElementById("closePanel").addEventListener("click",()=>setPanel(false));
+addEventListener("keydown",e=>{if(e.key==="Escape")setPanel(false);});
+
+const soundBtn=document.getElementById("soundBtn");
+function setSound(on){Sfx.on=on;soundBtn.setAttribute("aria-pressed",String(on));soundBtn.setAttribute("aria-label",on?"Sound on":"Sound off");
+  document.getElementById("waves").toggleAttribute("hidden",!on);document.getElementById("mute").toggleAttribute("hidden",on);
+  if(!on){try{speechSynthesis.cancel();}catch(e){}} store.set("squidge-sound",on?"1":"0");}
+soundBtn.addEventListener("click",()=>{Sfx.ensure();setSound(!Sfx.on);if(Sfx.on)Sfx.boing();});
+setSound(store.get("squidge-sound")!=="0");
+
+panel.querySelectorAll("[data-trick]").forEach(b=>b.addEventListener("click",()=>{ if(game.mode) stopGame(); wake(); tricks[b.dataset.trick](); }));
+function syncGameChips(){panel.querySelectorAll("[data-game]").forEach(b=>b.setAttribute("aria-pressed",String(game.mode===b.dataset.game)));}
+panel.querySelectorAll("[data-game]").forEach(b=>b.addEventListener("click",()=>{ if(game.mode===b.dataset.game){stopGame();setAct("laugh",900);} else {startGame(b.dataset.game);setPanel(false);} }));
+function setMood(m){mood=m;store.set("squidge-mood",m);panel.querySelectorAll("[data-mood]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mood===m)));}
+panel.querySelectorAll("[data-mood]").forEach(b=>b.addEventListener("click",()=>{setMood(b.dataset.mood);S.sqz.vel-=4;
+  const lines={happy:"Yay! I feel happy!",grumpy:"Hmph. Leave me alone.",shy:"Oh… hi…",silly:"Wheee! Blblblbl!"};Voice.say(lines[b.dataset.mood]);}));
+setMood(mood);
+panel.querySelectorAll("[data-dress]").forEach(b=>b.addEventListener("click",()=>{const k=b.dataset.dress;dress[k]=!dress[k];b.setAttribute("aria-pressed",String(dress[k]));
+  Sfx.boing();S.sqz.vel-=3;if(dress[k]&&!game.mode)setAct("surprise",600);store.set("squidge-dress",JSON.stringify(dress));}));
+try{const sd=JSON.parse(store.get("squidge-dress")||"{}");for(const k in dress) if(sd[k]){dress[k]=true;document.querySelector(`[data-dress="${k}"]`).setAttribute("aria-pressed","true");}}catch(e){}
+const nameInput=document.getElementById("nameInput");nameInput.value=name;
+document.getElementById("nameForm").addEventListener("submit",e=>{e.preventDefault();name=nameInput.value.trim().slice(0,24);store.set("squidge-name",name);
+  wake();setAct("laugh",1200);Voice.say(name?`Hi ${name}! I'm Squidge!`:"Hi! I'm Squidge!");hearts(2);});
+
+// talk back: Claude answers when this viewer allows it, otherwise Squidge repeats in a silly voice
+let samplePromise=null;
+try{ if(window.claude&&typeof window.claude.use==="function") samplePromise=window.claude.use("sample").catch(()=>null); }catch(e){}
+const talkNote=document.getElementById("talkNote");
+if(samplePromise) samplePromise.then(s=>{ if(s) talkNote.textContent="Squidge thinks up an answer and says it out loud."; });
+document.getElementById("talkForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const input=document.getElementById("talkInput");const text=input.value.trim();if(!text)return;input.value="";
+  wake();setAct("think",null);
+  let reply=null;
+  const sample=samplePromise?await Promise.race([samplePromise,new Promise(r=>setTimeout(()=>r(null),1500))]):null;
+  if(sample){
+    try{
+      const prompt=`You are Squidge, a squishy, friendly clay face toy on a website for young children.${name?` The child's name is ${name}.`:""} The child just said: "${text}". Reply as Squidge in one or two very short, simple, warm and silly sentences (under 22 words), right for a 3 to 8 year old. Never ask for personal information. Reply with only Squidge's words, no emoji.`;
+      const r=await sample(prompt,{modelTier:"quick",cache:false});
+      reply=(r&&r.text||"").trim().replace(/^["']|["']$/g,"");
+    }catch(err){reply=null;}
+  }
+  if(act&&act.name==="think") act=null;
+  Voice.say(reply||text);
+});
+setTimeout(()=>{ if(!game.mode) hintEl.classList.add("fade"); },10000);
+
+// ---------- the character's brain ----------
+function pose(now,t){
+  const P={lidTL:-0.12,lidTR:-0.12,lidBL:-0.12,lidBR:-0.12,tiltL:0,tiltR:0,browYL:0,browYR:0,browTL:0,browTR:0,
+           open:0,smile:0.45,width:0.5,tongue:0,pupil:1,sqz:1,sqxy:1,sink:0,cheek:0,homeS:1};
+  if(mood==="happy"){P.smile=0.6;P.browYL=P.browYR=0.02;}
+  if(mood==="grumpy"){P.smile=-0.35;P.width=0.4;P.lidTL=P.lidTR=0.32;P.browTL=P.browTR=0.28;P.browYL=P.browYR=-0.05;}
+  if(mood==="shy"){P.smile=0.22;P.width=0.3;P.lidTL=P.lidTR=0.12;P.browTL=P.browTR=-0.15;P.lidBL=P.lidBR=0.05;}
+  if(mood==="silly"){P.smile=0.75;P.browYL=0.06;P.browYR=-0.02;}
+  const idleFor=now-lastMove;
+
+  // what to look at (face coordinates)
+  let tf;
+  if(game.candy) tf=worldToFace(game.candy.x,game.candy.y);
+  else if(act&&act.name==="bubble") tf={x:0,y:MY-0.1};
+  else {
+    let tx=mouse.x,ty=mouse.y;
+    if(idleFor>2500&&idleFor<6000&&mouse.inside){
+      if(!glance||now>nextGlance){glance={x:W*(0.15+Math.random()*0.7),y:H*(0.15+Math.random()*0.6)};nextGlance=now+900+Math.random()*1400;}
+      tx=glance.x;ty=glance.y;
+    }
+    tf=toFaceCoords(tx,ty);
+  }
+  const near=clamp((1.7-Math.hypot(tf.x,tf.y))/1.4,0,1);
+  if(mood==="shy"&&near>0.2&&!game.mode){tf={x:-tf.x*0.5-0.4*Math.sign(tf.x||1),y:-0.6};}
+  if(mood!=="grumpy"){P.smile+=near*0.3;P.browYL+=near*0.025;P.browYR+=near*0.025;}
+  const zd=act&&act.name==="bubble"?0.35:0.9;
+  let look=[-1,1].map(s=>{
+    const dx=tf.x-s*0.37, dy=tf.y-0.2;
+    const k=1/Math.sqrt(dx*dx+dy*dy+zd*zd);
+    return [clamp(dx*k*1.1,-0.75,0.75),clamp(dy*k*1.1,-0.6,0.6)];
+  });
+  for(const [i,s] of [[0,-1],[1,1]]){
+    const f=toFaceCoords(mouse.x,mouse.y);
+    const d=Math.hypot(f.x-s*0.37,f.y-0.2);
+    if(mouse.inside&&!mouse.down&&d<0.26&&idleFor<3000&&!game.mode&&S.sink.v<0.3){
+      const k=1-d/0.26, side=i?"R":"L";
+      P["lidT"+side]=Math.max(P["lidT"+side],0.55*k+0.1);P["lidB"+side]=0.35*k+0.06;P["browY"+side]-=0.05*k;P["browT"+side]=0.15*k;
+    }
+  }
+  const gy=(look[0][1]+look[1][1])/2;
+  P.lidTL-=gy*0.35;P.lidTR-=gy*0.35;P.lidBL+=gy*0.15;P.lidBR+=gy*0.15;
+  P.sqz+=Math.sin(t*1.6)*0.012;
+
+  // sleepiness when ignored
+  if(mouse.inside&&!mouse.down&&!busy()&&(!act||act.name==="sleepy"||act.name==="asleep")){
+    if(idleFor>14000){ if(!act||act.name!=="asleep") setAct("asleep",null,{nextZ:now+1200}); }
+    else if(idleFor>6500){ if(!act) setAct("sleepy",null,{nextYawn:now+2500}); }
+  }
+  // silly mood fidgets
+  if(mood==="silly"&&!act&&!game.mode&&now>nextSilly){nextSilly=now+3000+Math.random()*2500;setAct(Math.random()<0.5?"blep":"cross",800);}
+
+  if(act&&now>act.until) act=null;
+  const a=act?act.name:null, at=act?(now-act.start)/1000:0;
+  switch(a){
+    case "laugh":{const k=Math.min(1,at*6);
+      P.open=0.85*k+Math.sin(at*22)*0.08*k;P.smile=1;P.width=0.6;
+      P.lidTL=P.lidTR=0.98;P.lidBL=P.lidBR=0.7;P.browYL=P.browYR=0.08;P.browTL=P.browTR=-0.12;
+      P.sqz=1+Math.sin(at*22)*0.02;break;}
+    case "giggle":{P.open=0.3+Math.abs(Math.sin(at*18))*0.28;P.smile=1;P.width=0.52;P.lidTL=P.lidTR=0.95;P.lidBL=P.lidBR=0.7;
+      P.browYL=P.browYR=0.08;P.browTL=P.browTR=-0.15;P.sqz=1+Math.sin(at*25)*0.025;once("g",()=>Sfx.giggle());break;}
+    case "hmph":{P.smile=0.05;P.width=0.3;P.lidTL=P.lidTR=0.55;P.browTL=P.browTR=0.38;P.browYL=P.browYR=-0.07;P.tiltL=P.tiltR=0.1;break;}
+    case "surprise":{P.lidTL=P.lidTR=-0.45;P.lidBL=P.lidBR=-0.1;P.browYL=P.browYR=0.12;P.browTL=P.browTR=-0.05;
+      P.open=0.38;P.smile=-0.25;P.width=0.3;P.pupil=0.7;break;}
+    case "poke":{const s=act.data.side,me=s<0?"L":"R",other=s<0?"R":"L";
+      P["lidT"+me]=1.05;P["lidB"+me]=0.8;P["browY"+me]=-0.06;P["browT"+me]=0.25;P["tilt"+me]=0.12;
+      P["lidT"+other]=-0.35;P["browY"+other]=0.12;P.open=0.25;P.smile=-0.35;P.width=0.32;break;}
+    case "silly":{P.lidTR=1.05;P.lidBR=0.6;P.browYR=-0.04;P.browTR=0.1;P.lidTL=-0.3;P.browYL=0.13;
+      P.open=0.3;P.smile=0.85;P.width=0.46;P.tongue=Math.min(1,at*3.5);break;}
+    case "blep":{P.open=0.22;P.tongue=0.55;P.smile=0.7;P.width=0.4;break;}
+    case "cross":{look=[[0.45,-0.05],[-0.45,-0.05]];P.smile=0.8;P.open=0.1;break;}
+    case "strain":{const k=Math.min(1,at*1.5);
+      P.sqz=1+0.4*k;P.sqxy=1+0.06*k;P.lidTL=P.lidTR=0.85;P.lidBL=P.lidBR=0.75;P.browTL=P.browTR=0.3;P.browYL=P.browYR=-0.05;
+      P.open=0;P.smile=-0.1;P.width=0.3;P.cheek=0.6*k;P.sqz+=Math.sin(at*40)*0.012*k;break;}
+    case "dizzy":{const w=9;look=[[Math.cos(at*w)*0.55,Math.sin(at*w)*0.45],[Math.cos(-at*w+1)*0.55,Math.sin(-at*w+1)*0.45]];
+      P.lidTL=P.lidTR=0.35;P.lidBL=P.lidBR=0.15;P.pupil=0.75;
+      P.browYL=0.08+Math.sin(at*7)*0.04;P.browYR=0.08-Math.sin(at*7)*0.04;P.browTL=-0.15;P.browTR=0.15;
+      P.open=0.18;P.smile=Math.sin(at*6)*0.6;P.width=0.42;P.tiltL=Math.sin(at*5)*0.2;P.tiltR=-Math.sin(at*5)*0.2;break;}
+    case "sleepy":{P.lidTL=P.lidTR=0.62+Math.sin(t*0.9)*0.06;P.lidBL=P.lidBR=0.2;P.browYL=P.browYR=-0.03;P.browTL=P.browTR=-0.08;
+      P.smile=0.25;P.width=0.42;look=look.map(l=>[l[0]*0.4,l[1]*0.4-0.15]);
+      if(now>act.data.nextYawn){setAct("yawn",2400);}
+      break;}
+    case "asleep":{P.lidTL=P.lidTR=1.08;P.lidBL=P.lidBR=0.45;P.browYL=P.browYR=-0.04;P.browTL=P.browTR=-0.1;
+      P.open=0.08+0.06*(0.5+0.5*Math.sin(t*1.3));P.smile=0.15;P.width=0.22;P.sqz=1+Math.sin(t*1.3)*0.035;
+      look=[[0,-0.3],[0,-0.3]];
+      if(now>act.data.nextZ){act.data.nextZ=now+2600;const m=faceToWorld(0.5,0.75);spawnPuff(2,m.x,m.y,0.12,0.3,0.1,2.4);Sfx.snore();}
+      break;}
+    case "startle":{P.lidTL=P.lidTR=-0.55;P.lidBL=P.lidBR=-0.15;P.browYL=P.browYR=0.14;P.open=0.3;P.smile=-0.1;P.width=0.32;P.pupil=0.65;break;}
+    case "search":{const sx=Math.sin(at*1.4)*0.6;look=[[sx,0.05+Math.sin(at*0.9)*0.15],[sx,0.05+Math.sin(at*0.9)*0.15]];
+      P.browTL=P.browTR=-0.22;P.browYL=P.browYR=0.05;P.smile=-0.2;P.width=0.36;P.lidTL=P.lidTR=0.12;break;}
+    case "think":{look=[[0.35,0.45],[0.35,0.45]];P.smile=0.2;P.width=0.3;P.browYL=0.1;P.browYR=-0.02;P.tiltL=-0.05;break;}
+    case "sneeze":{
+      if(at<1.45){const k=Math.min(1,at/1.4), jerk=Math.max(0,Math.sin(at*Math.PI/0.55))*0.08;
+        P.lidTL=P.lidTR=0.45+0.4*k;P.lidBL=P.lidBR=0.25;P.browYL=P.browYR=0.1+0.04*k;P.browTL=P.browTR=-0.18;
+        P.open=0.12+0.3*k+jerk;P.smile=-0.1;P.width=0.3;P.sqz=1+0.12*k;P.sqxy=1-0.03*k;
+        once("ah1",()=>Sfx.ah()); if(at>0.75) once("ah2",()=>Sfx.ah());
+      } else {
+        once("choo",()=>{Sfx.choo();S.sqz.vel-=12;S.sqxy.vel+=3;shakeUntil=now+450;
+          const m=faceToWorld(0,MY-0.12);for(let i=0;i<4;i++) spawnPuff(3,m.x+(Math.random()-.5)*0.3,m.y,(Math.random()-.5)*1.6,0.2+Math.random()*0.5,0.06+Math.random()*0.03,1.2);});
+        const k=at-1.45;
+        P.lidTL=P.lidTR=k<0.35?1.05:0.3;P.lidBL=P.lidBR=k<0.35?0.6:0.1;P.browTL=P.browTR=k<0.35?0.25:-0.1;P.browYL=P.browYR=0.03;
+        P.open=k<0.18?0.6:0.08;P.width=k<0.18?0.42:0.34;P.smile=k<0.35?-0.2:0.3;
+      } break;}
+    case "yawn":{const e=Math.sin(Math.min(1,at/2.2)*Math.PI);
+      P.open=0.85*e;P.width=0.36;P.smile=-0.15*e;P.lidTL=P.lidTR=0.5+0.5*e;P.lidBL=P.lidBR=0.3*e;P.browYL=P.browYR=0.1*e;P.browTL=P.browTR=-0.15*e;
+      P.sqz=1+0.08*e;P.sqxy=1+0.02*e;once("y",()=>Sfx.yawn());break;}
+    case "bubble":{const g=clamp((at-0.4)/3.0,0,1);
+      P.open=0.1;P.width=0.17;P.smile=0;P.lidTL=P.lidTR=0.1;P.browYL=P.browYR=0.05+0.06*g;P.cheek=0.5+0.5*g;
+      bubbleR=0.36*g*g*(3-2*g);
+      if(at>3.9) popBubble();
+      break;}
+    case "peekaboo":{
+      if(at<1.6){P.sink=1;P.lidTL=P.lidTR=1.05;P.lidBL=P.lidBR=0.6;P.smile=0.6;}
+      else {once("boo",()=>{Sfx.boo();Sfx.boing();S.sqz.vel-=6;S.sink.vel-=5;Voice.say(name?`Boo, ${name}!`:"Peekaboo!");});
+        P.lidTL=P.lidTR=-0.5;P.lidBL=P.lidBR=-0.15;P.browYL=P.browYR=0.14;P.open=0.75;P.smile=0.6;P.width=0.45;P.pupil=0.75;
+        if(at>2.7) setAct("laugh",1200);}
+      break;}
+    case "gape":{P.open=0.7;P.smile=0.5;P.width=0.45;P.lidTL=P.lidTR=-0.3;P.browYL=P.browYR=0.1;P.tongue=0.15;break;}
+    case "chomp":{P.open=at<0.7?Math.abs(Math.sin(at*13))*0.35:0;P.smile=0.95;P.width=0.5;P.lidTL=P.lidTR=0.8;P.lidBL=P.lidBR=0.6;
+      P.browYL=P.browYR=0.08;P.cheek=at<0.7?0.5:0;if(at>0.15)once("c1",()=>Sfx.chomp());if(at>0.4)once("c2",()=>Sfx.chomp());if(at>0.75)once("yum",()=>Sfx.yum());break;}
+  }
+
+  // hide and seek
+  let homeX=0,homeY=0;
+  if(game.hide){
+    const h=game.hide, ht=(now-h.t)/1000;
+    homeX=h.hx;homeY=h.hy;P.homeS=0.62;
+    if(h.phase==="sink"){P.sink=1;if(ht>0.8){const b=bounds();h.hx=(Math.random()*2-1)*Math.max(0,halfW-0.8);h.hy=clamp((Math.random()*2-1)*(halfH-1.0),b.yBot+0.6,b.yTop-0.7);h.phase="move";h.t=now;}}
+    else if(h.phase==="move"){P.sink=1;if(ht>0.9){h.phase="peek";h.t=now;Sfx.slide(true);}}
+    else if(h.phase==="peek"){P.sink=ht>6?0.32:0.45;P.lidTL=P.lidTR=-0.2;P.browYL=P.browYR=0.08+Math.max(0,Math.sin(t*8))*(ht>6?0.05:0);
+      look=[[Math.sin(t*1.5)*0.4,0.1],[Math.sin(t*1.5)*0.4,0.1]];}
+    else if(h.phase==="found"){P.sink=0;if(ht>1.6){
+      if(h.round>=3){stopGame();setAct("laugh",1400);stars(5);}
+      else {h.round++;h.phase="sink";h.t=now;Sfx.slide(false);setHint(`Hide and seek! Find Squidge. ${h.round} of 3`);}
+    }}
+  }
+
+  // hiccups
+  if(now<hicUntil&&now>nextHic){nextHic=now+900+Math.random()*1100;hicFlash=now;S.faceY.vel+=1.4;S.sqz.vel+=4;Sfx.hic();}
+  if(now-hicFlash<260){P.lidTL=Math.min(P.lidTL,-0.4);P.lidTR=Math.min(P.lidTR,-0.4);P.browYL+=0.1;P.browYR+=0.1;P.open=Math.max(P.open,0.16);P.width=Math.min(P.width,0.3);}
+  // talking
+  if(now<Voice.until&&!(act&&(act.name==="asleep"||act.name==="bubble"))){
+    const s=Math.max(0,Math.sin(t*17)*0.55+Math.sin(t*10.3+1)*0.5), kick=Math.max(0,1-(now-Voice.kick)/180);
+    P.open=Math.max(P.open*0.3,0.06+0.3*s+0.12*kick);P.width=Math.min(P.width,0.42);
+  }
+  P.blush=Math.min(1,blushLevel+(mood==="shy"?0.35+near*0.3:0));
+  P.dG=dress.glasses?1:0;P.dM=dress.stache?1:0;P.dB=dress.bow?1:0;P.dH=dress.hat?1:0;
+  P.lookLX=look[0][0];P.lookLY=look[0][1];P.lookRX=look[1][0];P.lookRY=look[1][1];
+  const pl=toPlane(mouse.x,mouse.y), par=reduced?0.25:1;
+  P.faceX=homeX+clamp(pl.x*0.035,-0.08,0.08)*par;P.faceY=homeY+clamp(pl.y*0.03,-0.06,0.06)*par;
+  if(now<shakeUntil){P.faceX+=Math.sin(now*0.09)*0.05;P.faceY+=Math.cos(now*0.11)*0.03;}
+  P.camX=-clamp(pl.x,-1.4,1.4)*0.55*par;P.camY=-clamp(pl.y,-1.6,1.6)*0.45*par;
+  if(!mouse.inside){P.camX*=0.3;P.camY*=0.3;}
+  return P;
+}
+
+function updateBlink(now){
+  const a=act?act.name:"";
+  if(a==="asleep"||a==="strain"||a==="laugh"||a==="giggle"||a==="peekaboo") {blink=0;blinkT=-1;return;}
+  if(blinkT<0&&now>nextBlink){
+    blinkT=now;blinkEye=Math.random()<0.08?(Math.random()<0.5?-1:1):0;
+    const dbl=Math.random()<0.2;
+    nextBlink=now+(dbl?260:(a==="sleepy"?1400+Math.random()*1600:2200+Math.random()*3200));
+  }
+  if(blinkT>=0){const x=(now-blinkT)/170;
+    if(x>=1){blink=0;blinkT=-1;} else blink=x<0.4?x/0.4:1-(x-0.4)/0.6;
+    blink=blink*blink*(3-2*blink);}
+}
+
+function updateEffects(now,dt){
+  blushLevel=Math.max(0,blushLevel-dt*0.12);
+  for(const d of dents) d.s=Math.max(0,d.s-dt*0.32);
+  while(dents.length&&dents[0].s<=0) dents.shift();
+  for(const r of ripples){
+    const age=tSec-r.t0;
+    if(!r.hit&&age>0.1){const dist=Math.hypot(r.x-S.faceX.v,r.y-S.faceY.v);if(dist>0.5&&age*1.3>=dist-0.6){r.hit=true;S.sqz.vel-=3*r.amp;S.sqxy.vel+=0.8*r.amp;}}
+  }
+  while(ripples.length&&tSec-ripples[0].t0>3) ripples.shift();
+  for(let i=puffs.length-1;i>=0;i--){
+    const p=puffs[i], age=(now-p.born)/1000;
+    if(age>p.life){puffs.splice(i,1);continue;}
+    if(p.orbit){const m=faceToWorld(0,1.0),ang=p.orbit.a0+age*3;p.x=m.x+Math.cos(ang)*0.6;p.y=m.y+Math.sin(ang)*0.16;}
+    else{
+      if(p.type===3||p.type===4) p.vy-=2.2*dt; else p.vy+=0.05*dt;
+      p.vx*=1-dt*0.8;p.x+=p.vx*dt+Math.sin(age*4+p.seed)*0.002;p.y+=p.vy*dt;
+    }
+    const grow=Math.min(1,age/0.25), shrink=clamp((p.life-age)/0.3,0,1);
+    p.cur=p.size*(1-Math.pow(1-grow,3)*1)*(grow<1?1+0.2*Math.sin(grow*Math.PI):1)*shrink;
+  }
+  const c=game.candy;
+  if(c){
+    if(c.state==="roam"){
+      const b=bounds();c.x+=c.vx*dt;c.y+=c.vy*dt;
+      if(Math.abs(c.x)>b.x){c.x=Math.sign(c.x)*b.x;c.vx*=-1;}
+      if(c.y>b.yTop){c.y=b.yTop;c.vy*=-1;} if(c.y<b.yBot){c.y=b.yBot;c.vy*=-1;}
+      c.z=0.45+Math.sin(now*0.004)*0.04;
+    } else if(c.state==="fly"){
+      c.t+=dt/0.5;const k=Math.min(1,c.t),e=k*k;const m=faceToWorld(0,MY-0.12);
+      c.x=c.x0+(m.x-c.x0)*e;c.y=c.y0+(m.y-c.y0)*e;c.z=0.45-0.3*e;c.r=0.085*(1-0.5*e);
+      if(!(act&&act.name==="gape")&&k<1) setAct("gape",600);
+      if(k>=1){game.candy=null;game.score++;setAct("chomp",1200);hearts(2);
+        if(game.score>=5){setHint("All fed! Squidge is full.");setTimeout(()=>{Voice.say(name?`Yum! Thank you, ${name}!`:"Yum! Thank you!");stars(5);},900);game.mode=null;syncGameChips();}
+        else {setHint(`Click the candy to feed Squidge! ${game.score} of 5`);setTimeout(()=>{if(game.mode==="feed")newCandy();},1100);}
+      }
+    }
+  }
+}
+
+// ---------- loop ----------
+const ripArr=new Float32Array(16), dentArr=new Float32Array(40), puffArr=new Float32Array(32);
+let last=performance.now(), t0=last, frames=0, acc=0, lastRaw=last, prevTry=null, adaptLocked=false, warm=0;
+function frame(now){
+  const dt=Math.min(0.05,(now-last)/1000);last=now;
+  const t=(now-t0)/1000;tSec=t;
+  const P=pose(now,t);
+  for(const k in P) if(S[k]) S[k].t=P[k];
+  for(let i=0;i<4;i++) for(const k in S) S[k].step(dt/4);
+  updateBlink(now);updateEffects(now,dt);
+  for(let i=0;i<3;i++){col.skin[i]+=(colTarget.skin[i]-col.skin[i])*Math.min(1,dt*5);col.iris[i]+=(colTarget.iris[i]-col.iris[i])*Math.min(1,dt*5);}
+
+  const bl=blinkEye<=0?blink:0, br=blinkEye>=0?blink:0;
+  const lidTL=S.lidTL.v+(1.05-S.lidTL.v)*bl, lidTR=S.lidTR.v+(1.05-S.lidTR.v)*br;
+  const lidBL=S.lidBL.v+(0.4-S.lidBL.v)*bl*0.6, lidBR=S.lidBR.v+(0.4-S.lidBR.v)*br*0.6;
+
+  ripArr.fill(0);ripples.forEach((r,i)=>{ripArr.set([r.x,r.y,r.t0,r.amp],i*4);});
+  dentArr.fill(0);dents.forEach((d,i)=>{dentArr.set([d.x,d.y,d.s,0],i*4);});
+  puffArr.fill(0);puffs.forEach((p,i)=>{puffArr.set([p.x,p.y,Math.max(0,p.cur||0)*1.35,p.type],i*4);});
+  const fx=(ripples.length||dents.length)?1:0;
+
+  gl.uniform2f(U.uRes,canvas.width,canvas.height);
+  gl.uniform1f(U.uTime,t);gl.uniform1f(U.uHalfH,halfH);gl.uniform1f(U.uPupil,S.pupil.v);
+  gl.uniform1f(U.uSink,clamp(S.sink.v,-0.15,1));gl.uniform1f(U.uBlush,clamp(S.blush.v,0,1));
+  gl.uniform1f(U.uFx,fx);gl.uniform1f(U.uSteps,QUAL.steps);gl.uniform1f(U.uShSteps,QUAL.sh);gl.uniform1f(U.uAOn,QUAL.ao);gl.uniform1f(U.uPuffOn,puffs.length?1:0);
+  gl.uniform3fv(U.uSkin,col.skin);gl.uniform3fv(U.uIris,col.iris);gl.uniform3f(U.uBrowCol,0.035,0.018,0.014);
+  gl.uniform4f(U.uLook,S.lookLX.v,S.lookLY.v,S.lookRX.v,S.lookRY.v);
+  gl.uniform2f(U.uLidT,lidTL,lidTR);gl.uniform2f(U.uLidB,lidBL,lidBR);
+  gl.uniform2f(U.uLidTilt,S.tiltL.v,S.tiltR.v);
+  gl.uniform2f(U.uBrowY,S.browYL.v,S.browYR.v);gl.uniform2f(U.uBrowTilt,S.browTL.v,S.browTR.v);
+  gl.uniform4f(U.uMouth,Math.max(0,S.open.v),S.smile.v,S.width.v,Math.max(0,S.tongue.v));
+  gl.uniform2f(U.uSquish,S.sqz.v,S.sqxy.v*S.homeS.v);gl.uniform2f(U.uFaceOff,S.faceX.v,S.faceY.v);gl.uniform2f(U.uCam,S.camX.v,S.camY.v);
+  gl.uniform4f(U.uBubble,bubbleR,1,clamp(S.cheek.v,0,1),0);
+  const c=game.candy;gl.uniform4f(U.uCandy,c?c.x:0,c?c.y:0,c?c.z:0,c?c.r:0);
+  gl.uniform4f(U.uDress,clamp(S.dG.v,0,1.2),clamp(S.dM.v,0,1.2),clamp(S.dB.v,0,1.2),clamp(S.dH.v,0,1.2));
+  gl.uniform4fv(U.uRip,ripArr);gl.uniform4fv(U.uDent,dentArr);gl.uniform4fv(U.uPuff,puffArr);
+  gl.drawArrays(gl.TRIANGLES,0,3);
+
+  // adaptive resolution with hysteresis: only change size when it clearly helps
+  frames++;acc+=(now-lastRaw);lastRaw=now;
+  if(warm<40){warm++;frames=0;acc=0;}
+  if(frames>=60&&!QP&&!adaptLocked){
+    const ms=acc/frames;
+    if(prevTry&&ms>prevTry.ms*0.9){scale=prevTry.scale;resize();adaptLocked=true;}  // going smaller did not speed it up (frame cap), go back and stop
+    else if(ms>21&&scale>MIN_SCALE){prevTry={scale,ms};scale=Math.max(MIN_SCALE,scale*0.85);resize();}
+    else {prevTry=null; if(ms<12.5&&scale<MAX_SCALE){scale=Math.min(MAX_SCALE,scale*1.1);resize();} }
+    frames=0;acc=0;
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+window.__squidge={S,setAct,pickTheme,tricks,startGame,stopGame,setMood,dress,addRipple,addDent,spawnPuff,game,popBubble,hideFound,tickle,
+  get act(){return act;}};
+})();
+</script>

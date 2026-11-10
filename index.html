@@ -1,0 +1,772 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kin World</title>
+<meta name="description" content="Kin World builds a playful, interactive website for your kid, with a family message timeline they can read for the rest of their life.">
+<meta name="theme-color" content="#2f8ff0">
+<meta property="og:title" content="Kin World">
+<meta property="og:description" content="A whole world, made just for your kid. Games, a page all about them, and messages from the family that stay with them for life.">
+<meta property="og:image" content="assets/dino-valley.jpg">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Caveat:wght@600;700&family=Nunito:wght@500;600;700;800;900&display=swap">
+<style>
+/* Layout: one long sky. You scroll from morning (hero) through golden hour to a starry night (contact),
+   the length of a childhood. Content sits on glossy toy-plastic panels floating in that sky. */
+:root{
+  --sky:#2f8ff0; --sky-deep:#1557c0; --ink:#12224a; --ink-soft:#4a5a85;
+  --cloud:#ffffff; --panel:#ffffff; --panel-tint:#eef6ff;
+  --candy:#ff4f9a; --sun:#ffc93c; --leaf:#22c58b; --grape:#7a5cff; --tang:#ff7a3d;
+  --night:#070b2a;
+  --display:"Bagel Fat One","Fredoka","Arial Rounded MT Bold",system-ui,sans-serif;
+  --body:"Nunito","Avenir Next","Segoe UI",system-ui,sans-serif;
+  --hand:"Caveat","Bradley Hand",cursive;
+  --r:28px; --gut:max(20px, env(safe-area-inset-left,0px));
+  --ease:cubic-bezier(.2,.9,.25,1.15);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;overflow-x:clip}
+body{margin:0;font-family:var(--body);font-weight:600;font-size:17px;line-height:1.55;color:var(--ink);
+  background:var(--sky);overflow-x:clip;-webkit-font-smoothing:antialiased}
+img{max-width:100%;display:block}
+a{color:inherit}
+button{font:inherit;color:inherit;cursor:pointer}
+h1,h2,h3{font-family:var(--display);font-weight:400;line-height:1;margin:0;text-wrap:balance}
+p{margin:0}
+:focus-visible{outline:3px solid var(--sun);outline-offset:3px;border-radius:8px}
+.wrap{width:min(1180px,100%);margin-inline:auto;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ---------- the sky (fixed, behind everything) ---------- */
+.sky{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none}
+.sky>div{position:absolute;inset:0}
+.sky .day{background:linear-gradient(#1d6fe0 0%,#2f8ff0 35%,#8fcbff 100%)}
+.sky .gold{background:linear-gradient(#5b62d6 0%,#b862b4 38%,#f0825f 72%,#ffb070 100%);opacity:0}
+.sky .dusk{background:linear-gradient(#1a1b5e 0%,#3b2c86 40%,#b2508f 85%,#ef8a6c 100%);opacity:0}
+.sky .night{background:linear-gradient(#050823 0%,#0b1040 55%,#232a7a 100%);opacity:0}
+#stars{position:absolute;inset:0;width:100%;height:100%;opacity:0}
+.orb{position:absolute;left:0;top:0;border-radius:50%;will-change:transform}
+.sunorb{width:min(26vw,220px);aspect-ratio:1;background:radial-gradient(circle at 38% 34%,#fffbe0,#ffd84a 45%,#ffb01f 100%);
+  box-shadow:0 0 90px 40px rgba(255,214,90,.55),0 0 220px 110px rgba(255,200,80,.28)}
+.moonorb{width:min(18vw,150px);aspect-ratio:1;background:radial-gradient(circle at 36% 32%,#fff,#e9edff 55%,#bfc8f5 100%);
+  box-shadow:0 0 70px 20px rgba(200,212,255,.35);opacity:0}
+.moonorb::before,.moonorb::after{content:"";position:absolute;border-radius:50%;background:rgba(150,162,220,.45)}
+.moonorb::before{width:22%;height:22%;left:54%;top:26%}
+.moonorb::after{width:14%;height:14%;left:30%;top:58%}
+.cl{position:absolute;left:0;top:0;will-change:transform}
+.cl svg{display:block;width:var(--w);height:auto;animation:drift var(--d) linear infinite;animation-delay:var(--dl)}
+@keyframes drift{from{transform:translate3d(-40vw,0,0)}to{transform:translate3d(120vw,0,0)}}
+.clouds-front{position:fixed;inset:0;z-index:5;pointer-events:none;overflow:hidden}
+
+/* ---------- nav ---------- */
+.nav{position:fixed;z-index:40;top:calc(12px + env(safe-area-inset-top,0px));left:0;right:0;pointer-events:none}
+.nav .bar{pointer-events:auto;display:flex;align-items:center;gap:8px;padding:8px 8px 8px 16px;border-radius:999px;
+  background:rgba(255,255,255,.78);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);
+  box-shadow:0 10px 30px rgba(10,30,90,.18),inset 0 1px 0 #fff;transition:transform .5s var(--ease)}
+.logo{display:flex;align-items:center;gap:9px;font-family:var(--display);font-size:21px;text-decoration:none;color:var(--ink);margin-right:auto;white-space:nowrap}
+.planet{position:relative;width:30px;height:30px;flex:none;border-radius:50%;background:radial-gradient(circle at 34% 30%,#ffd1e6,var(--candy) 55%,#c2187a);
+  box-shadow:inset -3px -4px 6px rgba(0,0,0,.18)}
+.planet::after{content:"";position:absolute;inset:36% -32%;border:3px solid var(--sun);border-radius:50%;transform:rotate(-18deg);
+  clip-path:polygon(0 48%,100% 48%,100% 100%,0 100%)}
+.nav nav{display:flex;gap:2px}
+.nav nav a{padding:8px 13px;border-radius:999px;text-decoration:none;font-weight:800;font-size:15px;color:var(--ink-soft);transition:background .2s,color .2s}
+.nav nav a:hover{background:rgba(47,143,240,.14);color:var(--ink)}
+@media (max-width:820px){.nav nav{display:none}}
+
+.btn{--bg:var(--candy);--sh:#b9126c;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;text-decoration:none;
+  font-family:var(--display);font-size:18px;letter-spacing:.01em;color:#fff;background:var(--bg);padding:14px 26px;border-radius:999px;
+  box-shadow:0 6px 0 var(--sh),0 14px 24px rgba(10,20,70,.25),inset 0 2px 0 rgba(255,255,255,.45);
+  transition:transform .18s var(--ease),box-shadow .18s;will-change:transform}
+.btn:hover{transform:translateY(-3px);box-shadow:0 9px 0 var(--sh),0 20px 30px rgba(10,20,70,.28),inset 0 2px 0 rgba(255,255,255,.45)}
+.btn:active{transform:translateY(4px);box-shadow:0 2px 0 var(--sh),0 6px 10px rgba(10,20,70,.25),inset 0 2px 0 rgba(255,255,255,.45)}
+.btn.sm{font-size:15px;padding:9px 18px;box-shadow:0 4px 0 var(--sh),inset 0 2px 0 rgba(255,255,255,.45)}
+.btn.white{--bg:#fff;--sh:#b7cdee;color:var(--sky-deep)}
+.btn.sunny{--bg:var(--sun);--sh:#d18f00;color:#4a2c00}
+.btn.blue{--bg:var(--sky);--sh:var(--sky-deep)}
+
+/* ---------- shared section type ---------- */
+section{position:relative;padding-block:clamp(90px,13vw,170px)}
+.kicker{font-family:var(--hand);font-size:clamp(26px,3.2vw,34px);color:var(--sun);transform:rotate(-3deg);display:inline-block;
+  text-shadow:0 2px 0 rgba(10,20,70,.35)}
+.title{font-size:clamp(44px,8vw,104px);color:#fff;letter-spacing:.005em;
+  text-shadow:0 2px 0 #0e3fa0,0 4px 0 #0e3fa0,0 6px 0 #0c3486,0 8px 0 #0a2b70,0 18px 30px rgba(5,15,60,.45)}
+.lede{font-size:clamp(18px,2vw,22px);font-weight:700;color:#fff;max-width:36em;text-shadow:0 1px 2px rgba(5,15,60,.5),0 2px 16px rgba(5,15,60,.55)}
+.head{display:grid;gap:14px;margin-bottom:clamp(36px,6vw,70px)}
+.panel{background:var(--panel);border-radius:var(--r);box-shadow:0 30px 60px -20px rgba(5,15,60,.5),0 2px 0 #fff inset,0 -6px 0 rgba(20,60,150,.1) inset}
+
+/* reveal: visible by default, only animated when JS is running */
+.js .rv{opacity:0;transform:translate3d(0,46px,0) scale(.96);transition:opacity .8s ease,transform 1s var(--ease);transition-delay:calc(var(--i,0)*80ms)}
+.js .rv.in{opacity:1;transform:none}
+
+/* ---------- hero ---------- */
+.hero{min-height:100svh;padding-block:clamp(110px,16vh,170px) 80px;display:grid;align-items:center}
+.hero .wrap{display:grid;grid-template-columns:1.1fr .9fr;gap:30px;align-items:center}
+.hero h1{font-size:clamp(50px,7.4vw,116px);color:#fff;line-height:.92;
+  text-shadow:0 2px 0 #0e3fa0,0 4px 0 #0e3fa0,0 6px 0 #0c3486,0 8px 0 #0c3486,0 10px 0 #0a2b70,0 12px 0 #0a2b70,0 26px 40px rgba(5,15,60,.45)}
+.hero h1 .w{display:inline-block;white-space:nowrap}
+.hero h1 .ch{display:inline-block;transform-origin:50% 90%}
+.js .hero h1 .ch{animation:pop .9s var(--ease) both;animation-delay:calc(var(--n)*38ms + .15s)}
+.hero h1 .pink{color:var(--sun)}
+@keyframes pop{0%{opacity:0;transform:translateY(.7em) rotate(14deg) scale(.4)}60%{opacity:1}100%{opacity:1;transform:none}}
+.hero .lede{margin-top:26px}
+.hero .cta{display:flex;flex-wrap:wrap;gap:16px;margin-top:34px}
+.js .hero .lede,.js .hero .cta,.js .hero .note{animation:rise 1s var(--ease) both;animation-delay:1s}
+.js .hero .cta{animation-delay:1.15s}.js .hero .note{animation-delay:1.3s}
+@keyframes rise{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:none}}
+.hero .note{margin-top:22px;color:#fff;font-weight:800;font-size:15px;opacity:.92;text-shadow:0 1px 8px rgba(5,15,60,.4)}
+.stage{position:relative;height:min(74vh,640px);perspective:1100px}
+.float{position:absolute;will-change:transform}
+.card3d{display:block;border-radius:22px;overflow:hidden;border:7px solid #fff;background:#fff;
+  box-shadow:0 40px 70px -18px rgba(5,15,60,.6),0 10px 0 rgba(255,255,255,.0);transform-style:preserve-3d;animation:bob var(--bt,7s) ease-in-out infinite;animation-delay:var(--bd,0s)}
+.card3d img{width:100%;aspect-ratio:4/3;object-fit:cover}
+.card3d span{position:absolute;left:10px;bottom:10px;font-family:var(--display);font-size:14px;background:#fff;color:var(--ink);padding:4px 12px;border-radius:999px;box-shadow:0 4px 10px rgba(0,0,0,.2)}
+@keyframes bob{0%,100%{translate:0 -10px;rotate:var(--r0,-4deg)}50%{translate:0 12px;rotate:var(--r1,-1deg)}}
+.f1{width:62%;left:22%;top:20%;z-index:3}
+.f2{width:44%;left:-2%;top:2%;z-index:2;--r0:-10deg;--r1:-7deg;--bt:8.5s;--bd:-2s}
+.f3{width:42%;right:-3%;top:58%;z-index:4;--r0:7deg;--r1:10deg;--bt:6.2s;--bd:-4s}
+.bubble{font-family:var(--hand);font-size:clamp(20px,2.2vw,27px);line-height:1.1;color:var(--ink);background:#fff;padding:12px 18px;border-radius:22px 22px 22px 6px;
+  box-shadow:0 18px 30px -8px rgba(5,15,60,.45);animation:bob 6s ease-in-out infinite;white-space:nowrap}
+.bubble small{display:block;font-family:var(--body);font-size:12px;font-weight:800;color:var(--ink-soft);margin-top:2px}
+.f4{left:2%;top:66%;z-index:5;--r0:-5deg;--r1:-2deg}
+.f5{right:0;top:6%;z-index:5;--r0:5deg;--r1:2deg;--bd:-3s}
+.f5 .bubble{background:var(--sun);border-radius:22px 22px 6px 22px}
+.star{position:absolute;width:var(--sz,46px);aspect-ratio:1;background:var(--c,var(--sun));
+  clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);animation:twirl 9s linear infinite;filter:drop-shadow(0 6px 6px rgba(0,0,0,.25))}
+@keyframes twirl{to{rotate:360deg}}
+.scrollcue{position:absolute;left:50%;bottom:22px;translate:-50% 0;color:#fff;font-weight:900;font-size:13px;letter-spacing:.14em;text-transform:uppercase;display:grid;justify-items:center;gap:6px;opacity:.9}
+.scrollcue i{width:26px;height:42px;border:3px solid #fff;border-radius:16px;position:relative}
+.scrollcue i::after{content:"";position:absolute;left:50%;top:7px;width:5px;height:9px;margin-left:-2.5px;border-radius:3px;background:#fff;animation:cue 1.6s ease-in-out infinite}
+@keyframes cue{0%{transform:translateY(0);opacity:1}80%,100%{transform:translateY(14px);opacity:0}}
+@media (max-width:900px){
+  .hero .wrap{grid-template-columns:1fr}
+  .stage{height:min(92vw,470px);margin-top:44px}
+  .notes{height:760px}.notecard{width:min(290px,80%)}.n2{top:25%}.n3{top:51%}.n4{top:76%}
+  .scrollcue{display:none}
+}
+
+/* ---------- marquee ribbon ---------- */
+.ribbon{position:relative;z-index:6;transform:rotate(-2.2deg) scale(1.04);background:var(--candy);color:#fff;padding:14px 0;overflow:hidden;
+  box-shadow:0 14px 30px rgba(5,15,60,.35),inset 0 3px 0 rgba(255,255,255,.35),inset 0 -5px 0 rgba(0,0,0,.14)}
+.ribbon.b{background:var(--sun);color:#4a2c00;transform:rotate(1.8deg) scale(1.04)}
+.ribbon .track{display:flex;gap:44px;width:max-content;font-family:var(--display);font-size:clamp(20px,2.6vw,30px);white-space:nowrap;will-change:transform}
+.ribbon .track span::after{content:"";display:inline-block;width:.6em;height:.6em;margin-left:44px;background:currentColor;opacity:.7;
+  clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)}
+
+/* ---------- worlds grid ---------- */
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(12px,1.8vw,22px);perspective:1400px}
+@media (max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+.tile{--rx:0deg;--ry:0deg;--gx:50%;--gy:50%;position:relative;display:block;width:100%;padding:0;border:0;text-align:left;aspect-ratio:4/3.5;border-radius:24px;overflow:hidden;
+  background:#fff;transform-style:preserve-3d;transform:rotateX(var(--rx)) rotateY(var(--ry)) translateZ(0);transition:transform .35s var(--ease),box-shadow .35s;
+  box-shadow:0 22px 40px -16px rgba(5,15,60,.6),inset 0 0 0 5px #fff}
+.tile:hover{box-shadow:0 40px 60px -18px rgba(5,15,60,.7),inset 0 0 0 5px #fff;z-index:2}
+.tile img{position:absolute;inset:5px;width:calc(100% - 10px);height:calc(100% - 10px);object-fit:cover;border-radius:19px;transition:transform .6s var(--ease)}
+.tile:hover img{transform:scale(1.07)}
+.tile::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .3s;
+  background:radial-gradient(circle at var(--gx) var(--gy),rgba(255,255,255,.55),transparent 45%)}
+.tile:hover::after{opacity:1}
+.tile .meta{position:absolute;left:5px;right:5px;bottom:5px;padding:34px 14px 12px;border-radius:0 0 19px 19px;color:#fff;
+  background:linear-gradient(transparent,rgba(8,16,60,.82));display:grid;gap:1px}
+.tile .meta b{font-family:var(--display);font-weight:400;font-size:clamp(16px,1.7vw,22px);line-height:1.05}
+.tile .meta small{font-size:12.5px;font-weight:800;opacity:.9}
+.tile .play{position:absolute;top:14px;right:14px;display:flex;align-items:center;gap:6px;font-family:var(--display);font-size:13px;color:var(--ink);background:var(--sun);
+  padding:5px 12px 5px 9px;border-radius:999px;box-shadow:0 4px 0 #d18f00;transform:translateZ(30px)}
+.tile .play::before{content:"";border-left:9px solid currentColor;border-block:6px solid transparent}
+.tile.soon{cursor:default;background:linear-gradient(150deg,var(--a),var(--b));box-shadow:0 22px 40px -16px rgba(5,15,60,.6),inset 0 0 0 5px rgba(255,255,255,.55)}
+.tile.soon .globe{position:absolute;left:50%;top:40%;width:44%;aspect-ratio:1;translate:-50% -50%;border-radius:50%;
+  background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.95),var(--c) 46%,rgba(0,0,0,.28) 130%);box-shadow:0 14px 24px rgba(0,0,0,.25);animation:bob 7s ease-in-out infinite;animation-delay:var(--bd,0s)}
+.tile.soon .globe::after{content:"";position:absolute;inset:38% -34%;border:5px solid rgba(255,255,255,.85);border-radius:50%;rotate:-20deg;clip-path:polygon(0 46%,100% 46%,100% 100%,0 100%)}
+.tile.soon .meta{background:none;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.3)}
+.tile.soon .tag{position:absolute;top:14px;left:14px;font-weight:900;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#fff;background:rgba(10,20,70,.35);padding:5px 10px;border-radius:999px}
+.gridnote{margin-top:26px;color:#fff;font-weight:800;text-shadow:0 1px 10px rgba(5,15,60,.5)}
+.gridnote a{color:var(--sun)}
+
+/* ---------- world window ---------- */
+.modal{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:max(14px,env(safe-area-inset-top,0px)) 14px max(14px,env(safe-area-inset-bottom,0px));visibility:hidden}
+.modal.open{visibility:visible}
+.modal .shade{position:absolute;inset:0;background:rgba(6,10,44,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);opacity:0;transition:opacity .35s}
+.modal.open .shade{opacity:1}
+.win{position:relative;width:min(1180px,100%);height:min(820px,100%);display:grid;grid-template-rows:auto 1fr;border-radius:26px;overflow:hidden;background:#fff;
+  box-shadow:0 60px 120px -20px rgba(0,0,0,.7),0 0 0 6px #fff;will-change:transform}
+.win header{display:flex;align-items:center;gap:10px;padding:10px 12px 10px 18px;background:linear-gradient(#fff,var(--panel-tint))}
+.win header h3{font-size:clamp(17px,2vw,22px);margin-right:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.win header p{font-size:13px;font-weight:800;color:var(--ink-soft);white-space:nowrap}
+.win .x{width:42px;height:42px;flex:none;border-radius:50%;border:0;background:var(--ink);color:#fff;font-size:22px;line-height:1;font-weight:900;transition:transform .25s var(--ease),background .2s}
+.win .x:hover{transform:rotate(90deg) scale(1.08);background:var(--candy)}
+.win .frame{position:relative;background:var(--sky)}
+.win iframe{position:absolute;inset:0;width:100%;height:100%;border:0;opacity:0;transition:opacity .5s}
+.win iframe.ready{opacity:1}
+.win .loading{position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:16px;color:#fff;font-family:var(--display);font-size:22px}
+.win .loading .planet{width:64px;height:64px;animation:bob 1.6s ease-in-out infinite}
+@media (max-width:700px){.win header p,.win header .newtab{display:none}.win{border-radius:20px}}
+
+/* ---------- how it works ---------- */
+.steps{position:relative;display:grid;gap:clamp(40px,7vw,90px)}
+.trail{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.trail path{fill:none;stroke:#fff;stroke-width:5;stroke-linecap:round;stroke-dasharray:2 16;opacity:.75}
+.step{position:relative;display:grid;grid-template-columns:auto 1fr;gap:clamp(16px,3vw,34px);align-items:center;width:min(640px,100%);padding:clamp(20px,3vw,34px)}
+.step:nth-child(odd){justify-self:end}
+.step .num{width:clamp(70px,9vw,110px);aspect-ratio:1;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-size:clamp(34px,5vw,56px);color:#fff;
+  background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.8),var(--c) 45%);box-shadow:inset -6px -8px 12px rgba(0,0,0,.2),0 12px 20px -6px rgba(0,0,0,.3);text-shadow:0 3px 0 rgba(0,0,0,.2)}
+.step h3{font-size:clamp(24px,3vw,34px);margin-bottom:8px}
+.step p{color:var(--ink-soft)}
+@media (max-width:760px){.step:nth-child(odd){justify-self:start}.trail{display:none}}
+
+/* ---------- why ---------- */
+.why{display:grid;grid-template-columns:1fr 1fr;gap:clamp(30px,5vw,70px);align-items:center}
+.notes{position:relative;height:clamp(460px,52vw,620px)}
+.notecard{position:absolute;width:min(300px,74%);padding:18px 20px 16px;border-radius:20px;background:#fff;font-family:var(--hand);font-size:clamp(22px,2.2vw,27px);line-height:1.12;
+  box-shadow:0 26px 40px -14px rgba(5,10,50,.6);will-change:transform}
+.notecard small{display:flex;justify-content:space-between;gap:10px;margin-top:10px;font-family:var(--body);font-size:12px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
+.notecard::before{content:"";position:absolute;top:-12px;left:50%;width:22px;height:22px;margin-left:-11px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,var(--c,var(--candy)) 60%);box-shadow:0 4px 6px rgba(0,0,0,.3)}
+.n1{left:0;top:2%;rotate:-6deg;--c:var(--candy)}
+.n2{right:0;top:22%;rotate:5deg;background:#fff6cf;--c:var(--tang)}
+.n3{left:8%;top:50%;rotate:-2deg;background:#e4f8ff;--c:var(--sky)}
+.n4{right:4%;top:72%;rotate:7deg;background:#f0e9ff;--c:var(--grape)}
+.reasons{display:grid;gap:14px;margin-top:30px}
+.reason{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:start;padding:18px 20px;border-radius:22px;color:#fff;
+  background:rgba(12,18,80,.36);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
+.reason i{width:16px;height:16px;margin-top:6px;border-radius:50%;background:var(--c);box-shadow:0 0 0 5px rgba(255,255,255,.18),0 0 18px var(--c)}
+.reason b{display:block;font-family:var(--display);font-weight:400;font-size:21px;line-height:1.15;margin-bottom:3px}
+.reason span{font-size:16px;opacity:.92}
+@media (max-width:900px){.why{grid-template-columns:1fr}.notes{order:2}}
+
+/* ---------- pricing ---------- */
+.plans{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;align-items:stretch}
+.plan{position:relative;display:grid;grid-template-rows:auto auto 1fr auto;gap:16px;padding:30px 26px 26px}
+.plan.star-plan{background:linear-gradient(165deg,#fff 0%,#fff3fa 100%);box-shadow:0 0 0 5px var(--candy),0 40px 70px -20px rgba(255,79,154,.55)}
+.plan .flag{position:absolute;top:-16px;right:22px;font-family:var(--display);font-size:14px;color:#fff;background:var(--candy);padding:5px 14px;border-radius:999px;rotate:4deg;box-shadow:0 4px 0 #b9126c}
+.plan h3{font-size:28px}
+.plan .who{color:var(--ink-soft);font-size:15.5px;margin-top:6px}
+.price{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px}
+.price b{font-family:var(--display);font-weight:400;font-size:62px;line-height:1;color:var(--sky-deep)}
+.star-plan .price b{color:var(--candy)}
+.price span{font-weight:800;color:var(--ink-soft);font-size:15px}
+.plan ul{list-style:none;margin:0;padding:0;display:grid;gap:9px;align-content:start;font-size:15.5px}
+.plan li{display:grid;grid-template-columns:20px 1fr;gap:10px}
+.plan li::before{content:"";width:12px;height:12px;margin-top:6px;border-radius:50%;background:var(--leaf);box-shadow:0 0 0 4px rgba(34,197,139,.2)}
+.extras{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:22px}
+.extra{padding:22px 24px;display:grid;gap:4px}
+.extra b{font-family:var(--display);font-weight:400;font-size:22px}
+.extra span{color:var(--ink-soft);font-size:15.5px}
+.pause{margin-top:22px;padding:clamp(22px,3vw,34px)}
+.pause h3{font-size:clamp(24px,3vw,32px);margin-bottom:6px}
+.pause>p{color:var(--ink-soft);max-width:44em}
+.pause ol{list-style:none;margin:24px 0 0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);gap:14px;counter-reset:s}
+.pause li{position:relative;padding:16px 16px 16px;border-radius:18px;background:var(--panel-tint);font-size:15px;color:var(--ink-soft)}
+.pause li b{display:block;color:var(--ink);font-weight:900;font-size:16px}
+.pause li em{display:block;font-style:normal;font-family:var(--display);color:var(--sky-deep);font-size:15px;margin-bottom:4px}
+@media (max-width:900px){.plans,.extras{grid-template-columns:1fr}.pause ol{grid-template-columns:1fr 1fr}}
+@media (max-width:480px){.pause ol{grid-template-columns:1fr}}
+
+/* ---------- contact ---------- */
+.contact{display:grid;grid-template-columns:.85fr 1.15fr;gap:clamp(26px,5vw,70px);align-items:start}
+.contact .title{font-size:clamp(44px,7vw,92px)}
+form.panel{padding:clamp(22px,3.4vw,40px);display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.field{display:grid;gap:6px;min-width:0}
+.field.full{grid-column:1/-1}
+label{font-weight:900;font-size:14px;color:var(--ink)}
+label span{font-weight:700;color:var(--ink-soft)}
+input,select,textarea{width:100%;font:inherit;font-weight:700;color:var(--ink);background:var(--panel-tint);border:3px solid transparent;border-radius:16px;padding:13px 15px;transition:border-color .2s,background .2s,transform .2s}
+textarea{min-height:120px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:0;border-color:var(--sky);background:#fff;transform:translateY(-2px)}
+.formfoot{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:16px}
+.formfoot small{color:var(--ink-soft);font-size:13.5px;flex:1;min-width:200px}
+#formmsg{grid-column:1/-1;font-weight:900;padding:14px 16px;border-radius:16px}
+#formmsg.ok{background:#dff8ec;color:#0a6b47}
+#formmsg.bad{background:#ffe6ea;color:#a3123a}
+.hp{position:absolute;left:-9999px}
+@media (max-width:900px){.contact{grid-template-columns:1fr}}
+@media (max-width:560px){form.panel{grid-template-columns:1fr}}
+
+/* ---------- footer ---------- */
+footer{position:relative;padding:0;color:#cfd6ff;overflow:hidden}
+.hills{display:block;width:100%;height:auto;margin-bottom:-2px}
+.foot{background:#04061c;padding-block:26px 34px}
+.foot .wrap{display:flex;flex-wrap:wrap;gap:12px 30px;align-items:center;justify-content:space-between;font-size:14.5px}
+.foot .logo{color:#fff;margin:0}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  html{scroll-behavior:auto}
+  .js .rv{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+<script>document.documentElement.classList.add('js')</script>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".7" stop-color="#fff"/><stop offset="1" stop-color="#cfe6ff"/></linearGradient>
+    <symbol id="cloud" viewBox="0 0 240 110">
+      <g fill="url(#cg)"><ellipse cx="70" cy="72" rx="58" ry="32"/><ellipse cx="120" cy="50" rx="52" ry="44"/><ellipse cx="172" cy="70" rx="56" ry="34"/><ellipse cx="96" cy="46" rx="34" ry="28"/><rect x="40" y="70" width="170" height="34" rx="17"/></g>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="sky" aria-hidden="true">
+  <div class="day"></div><div class="gold"></div><div class="dusk"></div><div class="night"></div>
+  <canvas id="stars"></canvas>
+  <div class="orb sunorb" id="sun"></div>
+  <div class="orb moonorb" id="moon"></div>
+  <div id="cloudsBack"></div>
+</div>
+<div class="clouds-front" id="cloudsFront" aria-hidden="true"></div>
+
+<div class="nav"><div class="wrap"><div class="bar" id="bar">
+  <a class="logo" href="#top"><i class="planet"></i>Kin World</a>
+  <nav aria-label="Sections">
+    <a href="#worlds">Worlds</a><a href="#how">How it works</a><a href="#why">Why</a><a href="#pricing">Pricing</a>
+  </nav>
+  <a class="btn sm" href="#contact">Start a world</a>
+</div></div></div>
+
+<main id="top">
+
+<!-- HERO -->
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <h1 id="h1" aria-label="A whole world, made just for your kid.">A whole world, made just for <span class="pink">your kid.</span></h1>
+      <p class="lede">Kin World builds your child their own playful website: games to poke at, a page all about them, and a timeline where the whole family leaves messages they can read for the rest of their life.</p>
+      <div class="cta">
+        <a class="btn" href="#worlds">Play with the worlds</a>
+        <a class="btn white" href="#pricing">See pricing</a>
+      </div>
+      <p class="note">From $199 to set up, then $50 a year to keep it online.</p>
+    </div>
+    <div class="stage" id="stage" aria-hidden="true">
+      <div class="float f2" data-m="26" data-depth=".22"><div class="card3d"><img src="assets/charm-keychain-2.jpg" alt=""><span>Charm Keychain</span></div></div>
+      <div class="float f1" data-m="46" data-depth=".1"><div class="card3d" style="--r0:-3deg;--r1:1deg"><img src="assets/dino-valley.jpg" alt=""><span>Dino Valley</span></div></div>
+      <div class="float f3" data-m="72" data-depth=".34"><div class="card3d"><img src="assets/squidge-2.jpg" alt=""><span>Squidge</span></div></div>
+      <div class="float f4" data-m="96" data-depth=".46"><div class="bubble">Happy 1st birthday, bug!<small>Grandma Jo, 2026</small></div></div>
+      <div class="float f5" data-m="60" data-depth=".3"><div class="bubble">You roared at the zoo today.<small>Dad, age 3</small></div></div>
+      <div class="float" style="left:48%;top:0" data-m="110" data-depth=".5"><i class="star" style="--sz:54px;position:static;display:block"></i></div>
+      <div class="float" style="left:8%;top:44%" data-m="80" data-depth=".4"><i class="star" style="--sz:30px;--c:#fff;position:static;display:block"></i></div>
+      <div class="float" style="right:8%;top:44%" data-m="130" data-depth=".6"><i class="star" style="--sz:38px;--c:var(--candy);position:static;display:block"></i></div>
+    </div>
+  </div>
+  <div class="scrollcue" aria-hidden="true"><i></i>Scroll</div>
+</section>
+
+<div class="ribbon" aria-hidden="true"><div class="track" data-marquee="-0.35"></div></div>
+
+<!-- WORLDS -->
+<section id="worlds">
+  <div class="wrap">
+    <div class="head">
+      <span class="kicker rv">go on, poke one</span>
+      <h2 class="title rv" style="--i:1">Pick a world to play in</h2>
+      <p class="lede rv" style="--i:2">These are real, working worlds. Open one and play with it right here, then close it and try the next. Yours gets your kid's name, face, favorites and family.</p>
+    </div>
+    <div class="grid" id="grid"></div>
+    <p class="gridnote rv">Don't see your kid's obsession? <a href="#contact">Tell us what they love</a> and we'll build a world around it.</p>
+  </div>
+</section>
+
+<div class="ribbon b" aria-hidden="true"><div class="track" data-marquee="0.35"></div></div>
+
+<!-- HOW -->
+<section id="how">
+  <div class="wrap">
+    <div class="head">
+      <span class="kicker rv">four small steps</span>
+      <h2 class="title rv" style="--i:1">How it works</h2>
+    </div>
+    <div class="steps" id="steps">
+      <svg class="trail" id="trail" aria-hidden="true"><path id="trailPath" d=""/></svg>
+      <article class="step panel rv" data-depth="-.05"><div class="num" style="--c:var(--candy)">1</div><div><h3>Pick a world</h3><p>Play with the samples above and choose the one that feels like your kid. Or ask for a custom world built from scratch around what they love.</p></div></article>
+      <article class="step panel rv" data-depth=".05"><div class="num" style="--c:var(--tang)">2</div><div><h3>Tell us about them</h3><p>Send their name, birthday, favorite things and a few photos. That is all we need to make the world theirs.</p></div></article>
+      <article class="step panel rv" data-depth="-.05"><div class="num" style="--c:var(--leaf)">3</div><div><h3>We build it</h3><p>We make the world, put it online at its own address and send you a private link to look over before anyone else sees it.</p></div></article>
+      <article class="step panel rv" data-depth=".05"><div class="num" style="--c:var(--grape)">4</div><div><h3>Share the family code</h3><p>Give grandparents, aunts, uncles and friends the code. They leave messages, photos and voice notes on the timeline, year after year.</p></div></article>
+    </div>
+  </div>
+</section>
+
+<!-- WHY -->
+<section id="why">
+  <div class="wrap why">
+    <div>
+      <span class="kicker rv">why families want one</span>
+      <h2 class="title rv" style="--i:1">Childhood goes fast. Keep the good bits.</h2>
+      <p class="lede rv" style="--i:2;margin-top:18px">A baby book sits in a drawer. A phone full of photos never gets looked at. A Kin World is a place your kid actually wants to visit, and every visit there is something new from someone who loves them.</p>
+      <div class="reasons">
+        <div class="reason rv" style="--c:var(--candy)"><i></i><div><b>Messages that outlast the moment</b><span>Grandpa's voice note from their second birthday is still there on their eighteenth.</span></div></div>
+        <div class="reason rv" style="--c:var(--sun);--i:1"><i></i><div><b>It grows up with them</b><span>Start with squishy games at two. Add new favorites, photos and pages as they change.</span></div></div>
+        <div class="reason rv" style="--c:var(--leaf);--i:2"><i></i><div><b>Only family gets in</b><span>The world opens with a family code, so it stays between the people you choose.</span></div></div>
+        <div class="reason rv" style="--c:#8fd0ff;--i:3"><i></i><div><b>Always yours to keep</b><span>You can download everything, every message and photo, at any time for free.</span></div></div>
+      </div>
+    </div>
+    <div class="notes" aria-label="Example messages from a family timeline">
+      <div class="notecard n1" data-depth=".16" data-m="20">You laughed so hard at the dog you got the hiccups. I'll never forget it.<small><span>Mom</span><span>Age 1</span></small></div>
+      <div class="notecard n2" data-depth=".3" data-m="34">First day of school. You didn't even look back!<small><span>Dad</span><span>Age 5</span></small></div>
+      <div class="notecard n3" data-depth=".1" data-m="14">Come visit soon. I'm saving you the big slice of pie.<small><span>Grandma Jo</span><span>Age 8</span></small></div>
+      <div class="notecard n4" data-depth=".4" data-m="44">So proud of you today, kid. Read this when you need it.<small><span>Uncle Ray</span><span>Age 13</span></small></div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing">
+  <div class="wrap">
+    <div class="head">
+      <span class="kicker rv">simple and honest</span>
+      <h2 class="title rv" style="--i:1">Pricing</h2>
+      <p class="lede rv" style="--i:2">One payment to build the world, then a small yearly fee to keep it online and safe. No monthly bills.</p>
+    </div>
+    <div class="plans">
+      <article class="plan panel rv">
+        <div><h3>Ready-made World</h3><p class="who">Choose a world from the gallery and we make it theirs.</p></div>
+        <div class="price"><b>$199</b><span>to set up<br>then $50 a year</span></div>
+        <ul><li>Any world from the gallery</li><li>Their name, colors, photos and favorites</li><li>Family message timeline</li><li>Family code lock</li><li>Free download of everything, any time</li></ul>
+        <a class="btn blue" href="#contact" data-plan="Ready-made World">Choose Ready-made</a>
+      </article>
+      <article class="plan panel star-plan rv" style="--i:1">
+        <span class="flag">Most loved</span>
+        <div><h3>Custom World</h3><p class="who">Designed from scratch around what your kid loves.</p></div>
+        <div class="price"><b>$500</b><span>to build<br>then $50 a year</span></div>
+        <ul><li>A one-of-a-kind theme and mascot</li><li>Games and a page all about them</li><li>Family message timeline</li><li>Family code lock</li><li>Free download of everything, any time</li></ul>
+        <a class="btn" href="#contact" data-plan="Custom World">Choose Custom</a>
+      </article>
+      <article class="plan panel rv" style="--i:2">
+        <div><h3>Custom, Ten Years Paid</h3><p class="who">The gift version. Pay once and forget about it for a decade.</p></div>
+        <div class="price"><b>$1,000</b><span>one payment<br>build plus 10 years</span></div>
+        <ul><li>Everything in Custom World</li><li>Ten years of hosting included</li><li>No yearly bill until year eleven</li><li>A lovely thing to give at a baby shower</li></ul>
+        <a class="btn blue" href="#contact" data-plan="Custom, Ten Years Paid">Choose Ten Years</a>
+      </article>
+    </div>
+    <div class="extras">
+      <div class="extra panel rv"><b>Gift a year, $50</b><span>Anyone in the family can cover a year of hosting. Grandparents love this one.</span></div>
+      <div class="extra panel rv" style="--i:1"><b>Time Capsule, $99 once</b><span>Stop adding to it and keep the world online to read and look back on until your kid turns 25.</span></div>
+    </div>
+    <div class="pause panel rv">
+      <h3>What if we miss a payment?</h3>
+      <p>Nothing disappears overnight. We keep your world as long as you're paying, and we give you plenty of time and warnings if a payment is missed.</p>
+      <ol>
+        <li><em>First 30 days</em><b>Grace period</b>Everything keeps working while we remind you.</li>
+        <li><em>Days 31 to 90</em><b>Sleeping</b>You can still view and download everything. New posts pause.</li>
+        <li><em>Day 91</em><b>Safely stored</b>The world goes offline and we email you a full copy.</li>
+        <li><em>Up to 3 years</em><b>Wake it any time</b>One year of hosting plus $29 brings it all back. We warn you 60, 30 and 7 days before anything is deleted.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section id="contact">
+  <div class="wrap contact">
+    <div>
+      <span class="kicker rv">say hello</span>
+      <h2 class="title rv" style="--i:1">Start your kid's world</h2>
+      <p class="lede rv" style="--i:2;margin-top:18px">Tell us a little about your kid and which world caught your eye. We'll write back with next steps. Nothing is charged until you say go.</p>
+    </div>
+    <form class="panel rv" id="form" novalidate>
+      <div class="field"><label for="f-name">Your name</label><input id="f-name" name="name" autocomplete="name" required></div>
+      <div class="field"><label for="f-email">Email</label><input id="f-email" name="email" type="email" autocomplete="email" required></div>
+      <div class="field"><label for="f-kid">Kid's first name <span>(optional)</span></label><input id="f-kid" name="kid"></div>
+      <div class="field"><label for="f-age">Their age <span>(optional)</span></label><input id="f-age" name="age" inputmode="numeric"></div>
+      <div class="field"><label for="f-world">World</label><select id="f-world" name="world"></select></div>
+      <div class="field"><label for="f-plan">Plan</label><select id="f-plan" name="plan"><option>Not sure yet</option><option>Ready-made World</option><option>Custom World</option><option>Custom, Ten Years Paid</option></select></div>
+      <div class="field full"><label for="f-msg">What does your kid love?</label><textarea id="f-msg" name="message" placeholder="Dinosaurs, the color purple, our dog Biscuit..."></textarea></div>
+      <div class="hp" aria-hidden="true"><label for="f-site">Website</label><input id="f-site" name="website" tabindex="-1" autocomplete="off"></div>
+      <div id="formmsg" role="status" hidden></div>
+      <div class="formfoot"><button class="btn" id="send" type="submit">Send it</button><small>We only use your details to reply to you.</small></div>
+    </form>
+  </div>
+</section>
+</main>
+
+<footer>
+  <svg class="hills" viewBox="0 0 1440 220" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 150 C200 60 380 60 560 130 S960 190 1180 110 1440 120 1440 120V220H0Z" fill="#0d1246"/>
+    <path d="M0 180 C240 110 420 130 640 170 S1080 120 1440 170V220H0Z" fill="#04061c"/>
+    <g fill="#0d1246"><path d="M290 140v-22l22-14 22 14v22z"/><path d="M1078 134v-22l16-12 16 12v22z"/></g>
+    <g fill="#ffd84a"><rect x="300" y="124" width="7" height="9" rx="1"/><rect x="318" y="124" width="7" height="9" rx="1"/><rect x="1090" y="118" width="7" height="9" rx="1"/></g>
+  </svg>
+  <div class="foot"><div class="wrap">
+    <a class="logo" href="#top"><i class="planet"></i>Kin World</a>
+    <span>A little world for every kid, kept for life.</span>
+    <span>&copy; <span id="yr">2026</span> Kin World</span>
+  </div></div>
+</footer>
+
+<!-- world window -->
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="winTitle">
+  <div class="shade" id="shade"></div>
+  <div class="win" id="win">
+    <header>
+      <h3 id="winTitle">World</h3>
+      <p id="winHint"></p>
+      <a class="btn sm white newtab" id="winNew" target="_blank" rel="noopener">Full screen</a>
+      <a class="btn sm" id="winPick" href="#contact">I want this one</a>
+      <button class="x" id="winClose" aria-label="Close this world">&times;</button>
+    </header>
+    <div class="frame"><div class="loading" id="winLoad"><i class="planet"></i>Opening the world…</div><iframe id="winFrame" title="Sample world" allow="autoplay; fullscreen; microphone; camera; accelerometer; gyroscope"></iframe></div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+$('#yr').textContent = new Date().getFullYear();
+
+/* ---------- content ---------- */
+const WORLDS = [
+  { id: 'dino-valley',      name: 'Dino Valley',        blurb: 'A 3D valley guarded by Rex the T-Rex', hint: 'Family code: 1234' },
+  { id: 'charm-keychain-2', name: 'Charm Keychain',     blurb: 'Swinging charms and a claw machine' },
+  { id: 'squidge-2',        name: 'Squidge',            blurb: 'A clay face that giggles when poked' },
+  { id: 'dino-valley-2',    name: 'Volcano Valley',     blurb: 'Dinosaurs, eggs and a rumbling volcano', hint: 'Family code: 1234' },
+  { id: 'charm-keychain',   name: 'Jelly Charms',       blurb: 'Glossy jelly charms on a chrome ring' },
+  { id: 'squidge',          name: 'Squidge Playground', blurb: 'Squish, stretch and dress up a clay pal' },
+];
+const SOON = [
+  ['Mermaid Cove', '#18c3c9', '#3a6cf0', '#7df0e2'], ['Rocket Station', '#3b2c86', '#0b1040', '#ff7a3d'],
+  ['Fairy Garden', '#7bd88f', '#1f9e7a', '#ffb3de'], ['Race Track', '#ff5a4f', '#b3122e', '#ffd84a'],
+  ['Unicorn Clouds', '#c9a8ff', '#ff8fc7', '#fff2a8'], ['Robot Lab', '#6f86a8', '#33415c', '#5ef2ff'],
+  ['Pirate Bay', '#2f8ff0', '#124a9c', '#ffcf6b'], ['Safari Camp', '#f2b441', '#c96a1c', '#8ee06b'],
+  ['Candy Kingdom', '#ff8fc7', '#ff4f9a', '#9ff0ff'], ['Hero City', '#5b62d6', '#22246e', '#ff4f6a'],
+];
+const grid = $('#grid');
+WORLDS.forEach((w, i) => {
+  const b = document.createElement('button');
+  b.className = 'tile rv'; b.type = 'button'; b.style.setProperty('--i', i % 4); b.dataset.world = w.id;
+  b.setAttribute('aria-label', `Open ${w.name} to play`);
+  b.innerHTML = `<img src="assets/${w.id}.jpg" alt="" loading="lazy"><span class="play">Play</span><span class="meta"><b>${w.name}</b><small>${w.blurb}</small></span>`;
+  grid.appendChild(b);
+});
+SOON.forEach(([n, a, b, c], i) => {
+  const d = document.createElement('div');
+  d.className = 'tile soon rv'; d.style.cssText = `--a:${a};--b:${b};--c:${c};--i:${(i + 2) % 4};--bd:${-i * .7}s`;
+  d.innerHTML = `<span class="tag">Coming soon</span><i class="globe"></i><span class="meta"><b>${n}</b></span>`;
+  grid.appendChild(d);
+});
+const sel = $('#f-world');
+sel.innerHTML = '<option>Not sure yet</option>' + WORLDS.map(w => `<option>${w.name}</option>`).join('') + '<option>Something custom</option>';
+
+/* marquee text */
+const words = ['Message timeline', 'Games', 'All about me', 'Voice notes', 'Photos', 'Family code', 'Grows with them', 'Yours to keep'];
+$$('.ribbon .track').forEach(t => { t.innerHTML = Array(4).fill(words.map(w => `<span>${w}</span>`).join('')).join(''); });
+
+/* hero headline: split into letters */
+(() => {
+  const h = $('#h1'); let n = 0;
+  const walk = node => {
+    [...node.childNodes].forEach(c => {
+      if (c.nodeType === 3) {
+        const f = document.createDocumentFragment();
+        c.textContent.split(/(\s+)/).forEach(tok => {
+          if (!tok) return;
+          if (/^\s+$/.test(tok)) { f.append(' '); return; }
+          const w = document.createElement('span'); w.className = 'w'; w.setAttribute('aria-hidden', 'true');
+          [...tok].forEach(ch => { const s = document.createElement('span'); s.className = 'ch'; s.textContent = ch; s.style.setProperty('--n', n++); w.append(s); });
+          f.append(w);
+        });
+        c.replaceWith(f);
+      } else walk(c);
+    });
+  };
+  walk(h);
+})();
+
+/* ---------- reveal ---------- */
+if ('IntersectionObserver' in window && !reduce) {
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px', threshold: .08 });
+  $$('.rv').forEach(el => io.observe(el));
+} else $$('.rv').forEach(el => el.classList.add('in'));
+
+/* ---------- clouds ---------- */
+const clouds = [];
+const rnd = (() => { let s = 7; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
+function makeClouds(host, count, wMin, wMax, speed, op) {
+  for (let i = 0; i < count; i++) {
+    const el = document.createElement('div'); el.className = 'cl';
+    const w = lerp(wMin, wMax, rnd()), d = lerp(70, 150, rnd()) / (speed + .4);
+    el.innerHTML = `<svg viewBox="0 0 240 110" style="--w:${w.toFixed(0)}px;--d:${d.toFixed(0)}s;--dl:${(-rnd() * d).toFixed(0)}s;opacity:${op}"><use href="#cloud"/></svg>`;
+    host.appendChild(el);
+    clouds.push({ el, y: rnd(), speed: speed * lerp(.8, 1.2, rnd()), h: w * .46 });
+  }
+}
+const small = innerWidth < 700;
+makeClouds($('#cloudsBack'), small ? 4 : 7, small ? 90 : 140, small ? 170 : 260, .12, .75);
+makeClouds($('#cloudsBack'), small ? 3 : 5, small ? 160 : 260, small ? 240 : 420, .3, .95);
+makeClouds($('#cloudsFront'), small ? 1 : 2, small ? 220 : 460, small ? 280 : 680, .75, small ? .3 : .42);
+
+/* ---------- stars ---------- */
+const sc = $('#stars');
+function drawStars() {
+  const dpr = Math.min(2, devicePixelRatio || 1), w = innerWidth, h = innerHeight;
+  sc.width = w * dpr; sc.height = h * dpr;
+  const c = sc.getContext('2d'); c.scale(dpr, dpr);
+  let s = 11; const r = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < Math.round(w * h / 5200); i++) {
+    const x = r() * w, y = r() * h * .92, rad = r() * r() * 1.9 + .35;
+    c.globalAlpha = .35 + r() * .65; c.fillStyle = r() > .85 ? '#ffe9a8' : '#fff';
+    c.beginPath(); c.arc(x, y, rad, 0, 6.3); c.fill();
+    if (rad > 1.7) { c.globalAlpha = .18; c.beginPath(); c.arc(x, y, rad * 3.2, 0, 6.3); c.fill(); }
+  }
+}
+
+/* ---------- parallax engine ---------- */
+const pars = $$('[data-depth],[data-m]').map(el => ({ el, depth: (+el.dataset.depth || 0) * (small ? .45 : 1), m: +el.dataset.m || 0, mid: 0 }));
+const marq = $$('[data-marquee]').map(el => ({ el, k: +el.dataset.marquee, off: 0 }));
+const sky = { gold: $('.sky .gold'), dusk: $('.sky .dusk'), night: $('.sky .night'), sun: $('#sun'), moon: $('#moon') };
+const cf = $('#cloudsFront'), cb = $('#cloudsBack'), bar = $('#bar');
+let vw = innerWidth, vh = innerHeight, docH = 1, sy = scrollY, ty = scrollY, mx = 0, my = 0, tmx = 0, tmy = 0, lastY = scrollY;
+const trail = $('#trail'), trailPath = $('#trailPath'), steps = $('#steps');
+let trailLen = 0, stepsTop = 0, stepsH = 1;
+
+function measure() {
+  vw = innerWidth; vh = innerHeight; docH = Math.max(1, document.documentElement.scrollHeight - vh);
+  pars.forEach(p => { const t = p.el.style.transform; p.el.style.transform = ''; const r = p.el.getBoundingClientRect(); p.mid = r.top + scrollY + r.height / 2; p.el.style.transform = t; });
+  drawStars();
+  // dotted trail linking the step cards
+  const sr = steps.getBoundingClientRect(); stepsTop = sr.top + scrollY; stepsH = sr.height;
+  const pts = $$('.step .num', steps).map(n => { const r = n.getBoundingClientRect(); return [r.left - sr.left + r.width / 2, r.top - sr.top + r.height / 2]; });
+  if (pts.length) {
+    let d = `M${pts[0][0]} ${pts[0][1]}`;
+    for (let i = 1; i < pts.length; i++) { const [x0, y0] = pts[i - 1], [x1, y1] = pts[i], my_ = (y0 + y1) / 2; d += ` C${x0} ${my_} ${x1} ${my_} ${x1} ${y1}`; }
+    trailPath.setAttribute('d', d);
+  }
+}
+const tri = (p, a, b, c) => p <= a || p >= c ? 0 : p < b ? (p - a) / (b - a) : (c - p) / (c - b);
+
+function frame() {
+  ty = scrollY;
+  sy = reduce ? ty : lerp(sy, ty, .12); if (Math.abs(sy - ty) < .05) sy = ty;
+  mx = lerp(mx, tmx, .07); my = lerp(my, tmy, .07);
+  const p = clamp(sy / docH);
+
+  // sky: morning -> golden hour -> dusk -> night
+  sky.gold.style.opacity = tri(p, .28, .52, .74).toFixed(3);
+  sky.dusk.style.opacity = (p < .5 ? 0 : p < .72 ? (p - .5) / .22 : 1 - clamp((p - .78) / .14)).toFixed(3);
+  sky.night.style.opacity = clamp((p - .72) / .16).toFixed(3);
+  sc.style.opacity = clamp((p - .6) / .25).toFixed(3);
+  const sp = clamp(p / .62);
+  sky.sun.style.transform = `translate3d(${(vw * (.74 - sp * .3) + mx * -18).toFixed(1)}px,${(vh * (.08 + sp * sp * 1.05) + my * -12).toFixed(1)}px,0) scale(${(1 + sp * .5).toFixed(3)})`;
+  const mp = clamp((p - .62) / .38), me = 1 - Math.pow(1 - mp, 3);
+  sky.moon.style.opacity = clamp(mp * 3).toFixed(3);
+  sky.moon.style.transform = `translate3d(${(vw * (.12 + me * .62) + mx * -10).toFixed(1)}px,${(vh * (1.05 - me * .93) + my * -8).toFixed(1)}px,0)`;
+  const cop = (1 - clamp((p - .5) / .4) * .78).toFixed(3);
+  cb.style.opacity = cop; cf.style.opacity = cop;
+
+  if (!reduce) {
+    for (const c of clouds) {
+      const span = vh + c.h + 80;
+      const y = ((((c.y * span - sy * c.speed) % span) + span) % span) - c.h - 40;
+      c.el.style.transform = `translate3d(${(mx * -40 * c.speed).toFixed(1)}px,${y.toFixed(1)}px,0)`;
+    }
+    for (const q of pars) {
+      const rel = q.mid - (sy + vh / 2);
+      if (rel > vh * 1.4 || rel < -vh * 1.4) continue;
+      q.el.style.transform = `translate3d(${(mx * q.m).toFixed(1)}px,${(-rel * q.depth + my * q.m * .7).toFixed(1)}px,0)`;
+    }
+    const vel = sy - lastY;
+    for (const m of marq) {
+      m.off += m.k * 1.2 + vel * m.k * .9;
+      const half = m.el.scrollWidth / 2 || 1;
+      m.off = ((m.off % half) - half) % half;
+      m.el.style.transform = `translate3d(${m.off.toFixed(1)}px,0,0)`;
+    }
+  }
+  lastY = sy;
+  requestAnimationFrame(frame);
+}
+addEventListener('pointermove', e => { if (e.pointerType === 'touch') return; tmx = (e.clientX / vw - .5) * -1; tmy = (e.clientY / vh - .5) * -1; }, { passive: true });
+let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(measure, 150); });
+addEventListener('load', measure);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(measure);
+measure(); requestAnimationFrame(frame);
+
+// hide the nav on the way down, bring it back on the way up
+let navY = scrollY;
+addEventListener('scroll', () => {
+  const y = scrollY; bar.style.transform = (y > navY && y > 500) ? 'translateY(-90px)' : ''; navY = y;
+}, { passive: true });
+
+/* ---------- tile tilt ---------- */
+if (matchMedia('(hover:hover)').matches && !reduce) {
+  $$('.tile').forEach(t => {
+    t.addEventListener('pointermove', e => {
+      const r = t.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+      t.style.setProperty('--ry', ((x - .5) * 16).toFixed(2) + 'deg'); t.style.setProperty('--rx', ((.5 - y) * 14).toFixed(2) + 'deg');
+      t.style.setProperty('--gx', (x * 100).toFixed(0) + '%'); t.style.setProperty('--gy', (y * 100).toFixed(0) + '%');
+    });
+    t.addEventListener('pointerleave', () => { t.style.setProperty('--rx', '0deg'); t.style.setProperty('--ry', '0deg'); });
+  });
+  // hero cards lean toward the pointer
+  const stage = $('#stage');
+  addEventListener('pointermove', e => {
+    const x = (e.clientX / innerWidth - .5), y = (e.clientY / innerHeight - .5);
+    stage.style.transform = `rotateY(${(x * 10).toFixed(2)}deg) rotateX(${(-y * 8).toFixed(2)}deg)`;
+  }, { passive: true });
+  stage.style.transition = 'transform .5s ease-out'; stage.style.transformStyle = 'preserve-3d';
+}
+
+/* ---------- world window ---------- */
+const modal = $('#modal'), win = $('#win'), frameEl = $('#winFrame'), loadEl = $('#winLoad');
+let opener = null, current = null;
+function flip(fromEl, reverse) {
+  if (reduce || !fromEl || !win.animate) return null;
+  const a = fromEl.getBoundingClientRect(), b = win.getBoundingClientRect();
+  const k = [{ transform: `translate(${a.left + a.width / 2 - (b.left + b.width / 2)}px,${a.top + a.height / 2 - (b.top + b.height / 2)}px) scale(${a.width / b.width},${a.height / b.height})`, opacity: .2, borderRadius: '60px' },
+             { transform: 'none', opacity: 1, borderRadius: '26px' }];
+  return win.animate(reverse ? k.reverse() : k, { duration: reverse ? 320 : 620, easing: reverse ? 'cubic-bezier(.5,0,.8,.4)' : 'cubic-bezier(.2,.9,.25,1.08)', fill: 'both' });
+}
+function openWorld(w, from) {
+  current = w; opener = from;
+  $('#winTitle').textContent = w.name; $('#winHint').textContent = w.hint || 'Click, drag and poke around';
+  const url = `samples/${w.id}/`; $('#winNew').href = url;
+  frameEl.classList.remove('ready'); loadEl.hidden = false;
+  modal.classList.add('open'); document.documentElement.style.overflow = 'hidden';
+  const an = flip(from, false);
+  const go = () => { frameEl.src = url; };
+  an ? an.finished.then(go, go) : go();
+  $('#winClose').focus({ preventScroll: true });
+}
+function closeWorld() {
+  if (!modal.classList.contains('open')) return;
+  frameEl.classList.remove('ready'); frameEl.removeAttribute('src');
+  const done = () => { modal.classList.remove('open'); document.documentElement.style.overflow = ''; win.getAnimations && win.getAnimations().forEach(a => a.cancel()); opener && opener.focus({ preventScroll: true }); };
+  modal.querySelector('.shade').style.opacity = 0;
+  const an = flip(opener, true);
+  const fin = () => { modal.querySelector('.shade').style.opacity = ''; done(); };
+  an ? an.finished.then(fin, fin) : fin();
+}
+frameEl.addEventListener('load', () => { if (frameEl.getAttribute('src')) { frameEl.classList.add('ready'); loadEl.hidden = true; frameEl.focus();
+  try { frameEl.contentWindow.addEventListener('keydown', e => { if (e.key === 'Escape') closeWorld(); }); } catch (e) {} } });
+grid.addEventListener('click', e => { const t = e.target.closest('[data-world]'); if (t) openWorld(WORLDS.find(w => w.id === t.dataset.world), t); });
+$('#winClose').addEventListener('click', closeWorld);
+$('#shade').addEventListener('click', closeWorld);
+addEventListener('keydown', e => { if (e.key === 'Escape') closeWorld(); });
+$('#winPick').addEventListener('click', () => { if (current) sel.value = current.name; closeWorld(); });
+$$('[data-plan]').forEach(a => a.addEventListener('click', () => { $('#f-plan').value = a.dataset.plan; }));
+
+/* ---------- contact form ---------- */
+const form = $('#form'), msg = $('#formmsg'), send = $('#send');
+const say = (text, ok) => { msg.hidden = false; msg.className = ok ? 'ok' : 'bad'; msg.textContent = text; };
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(form));
+  if (!data.name.trim()) { say('Please add your name so we know who to write back to.'); $('#f-name').focus(); return; }
+  if (!/^\S+@\S+\.\S+$/.test(data.email.trim())) { say('That email doesn\'t look right. Please check it and try again.'); $('#f-email').focus(); return; }
+  send.disabled = true; send.textContent = 'Sending…';
+  try {
+    const r = await fetch('/api/contact', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    if (!r.ok) throw new Error(r.status);
+    form.reset(); say('Sent! We\'ll write back to you soon.', true);
+  } catch (err) {
+    say('We couldn\'t send your message just now. Please try again in a few minutes.');
+  }
+  send.disabled = false; send.textContent = 'Send it';
+});
+})();
+</script>
+</body>
+</html>
