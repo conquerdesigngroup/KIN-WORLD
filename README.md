@@ -7,4 +7,4 @@ The Kin World storefront: a single page with a hero, a 4x4 gallery of sample wor
 - `api/contact.js` emails contact form submissions through Resend. Set `RESEND_API_KEY` and `CONTACT_TO` in the Vercel project's environment variables.
 - Prices live in the Pricing section of `index.html`.
 
-Pushing to `main` deploys on Vercel.
+Pushing to `main` deploys to production on Vercel (project `kin-world`).
