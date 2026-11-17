@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+</head>
+<body>
+<title>Let Us Out</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&display=swap">
+<style>
+/* Layout: one full-bleed black stage; the bag of balls is the whole page, UI is a quiet rim of small controls. */
+:root{
+  --stage:#000000;
+  --ink:#f3ead2;
+  --ink-dim:rgba(243,234,210,.56);
+  --felt:#f7b40a;
+  --chip:rgba(255,255,255,.07);
+  --chip-line:rgba(255,255,255,.14);
+  --warn:#ff7a3d;
+  --font:"Bricolage Grotesque",ui-rounded,"Segoe UI",system-ui,sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--stage);color:var(--ink);font-family:var(--font);overflow:hidden;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#stage{position:fixed;inset:0;display:block;width:100%;height:100%;touch-action:none;cursor:grab;outline:none}
+#stage.grabbing{cursor:grabbing}
+#stage.over{cursor:pointer}
+.hud{position:fixed;pointer-events:none;z-index:2}
+.top{top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+  padding-top:calc(14px + env(safe-area-inset-top,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.mark{display:flex;flex-direction:column;gap:2px}
+.mark b{font-size:19px;font-weight:700;letter-spacing:-.01em;color:var(--felt)}
+.mark span{font-size:12px;color:var(--ink-dim);font-variant-numeric:tabular-nums}
+.bottom{bottom:0;left:0;right:0;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:10px;
+  padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.hints{display:flex;flex-wrap:wrap;gap:6px;min-width:0;transition:opacity .8s}
+.hints.quiet{opacity:.38}
+.hints span{font-size:12px;color:var(--ink-dim);border:1px solid var(--chip-line);background:var(--chip);
+  border-radius:999px;padding:5px 10px;white-space:nowrap}
+.btns{display:flex;gap:8px;pointer-events:auto;margin-left:auto}
+button{font:500 13px var(--font);color:var(--ink);background:var(--chip);border:1px solid var(--chip-line);
+  border-radius:999px;padding:9px 14px;cursor:pointer;touch-action:none}
+button:hover{background:rgba(255,255,255,.12)}
+button:focus-visible{outline:2px solid var(--felt);outline-offset:2px}
+button.on{background:var(--felt);color:#1a1200;border-color:var(--felt)}
+button.warn{border-color:var(--warn);color:var(--warn);animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{background:rgba(255,122,61,.18)}}
+@media (prefers-reduced-motion:reduce){button.warn{animation:none}}
+#fail{position:fixed;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--ink-dim);font-size:15px}
+</style>
+
+<canvas id="stage" tabindex="0" aria-label="A clear stretchy bag packed with yellow smiley and frowny balls. Drag a ball to stretch the bag."></canvas>
+<div class="hud top">
+  <div class="mark"><b>Let Us Out</b><span id="stat">bag stretch 100%</span></div>
+</div>
+<div class="hud bottom">
+  <div class="hints" id="hints">
+    <span>Drag a ball to pull it out</span><span>Tap a ball to poke it</span><span>Scroll or pinch to squeeze</span><span>Drag the dark to spin</span>
+  </div>
+  <div class="btns">
+    <button id="squeezeBtn" type="button">Hold to squeeze</button>
+    <button id="soundBtn" type="button" aria-pressed="true">Sound on</button>
+  </div>
+</div>
+<div id="fail" hidden>This needs WebGL, which this browser has switched off.</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.min.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+const canvas = document.getElementById('stage');
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const coarse = matchMedia('(pointer:coarse)').matches || Math.min(innerWidth, innerHeight) < 560;
+const QS = new URLSearchParams(location.search);
+
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); }
+catch (e) { document.getElementById('fail').hidden = false; throw e; }
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.setClearColor(0x000000, 1);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 60);
+const FIT_R = 2.5;
+
+/* ---------- studio light: softboxes on black, baked to an environment ---------- */
+{
+  const env = new THREE.Scene();
+  const box = (w, h, pos, k, tint = [1, 1, 1]) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(tint[0] * k, tint[1] * k, tint[2] * k), side: THREE.DoubleSide }));
+    m.position.set(...pos); m.lookAt(0, 0, 0); env.add(m);
+  };
+  box(7, 7, [-1.5, 7, 3.5], 9, [1, .97, .92]);      // big overhead key
+  box(2.2, 7, [-7.5, 1, 2.5], 4.5, [1, .96, .9]);   // left strip
+  box(2, 6, [6.5, 2.5, -4.5], 5, [.92, .96, 1]);    // right back rim
+  box(6, 2, [1, -2.5, 8], .55);                     // faint front fill
+  box(5, 5, [0, -8, 0], .18, [1, .8, .5]);          // warm floor bounce
+  const pm = new THREE.PMREMGenerator(renderer);
+  scene.environment = pm.fromScene(env, 0.035).texture;
+  scene.environmentIntensity = 0.85;
+  pm.dispose();
+}
+const key = new THREE.DirectionalLight(0xfff4e2, 2.3);
+key.position.set(-2.6, 6.5, 4.6);
+scene.add(key);
+const keyDir = key.position.clone().normalize();
+
+const group = new THREE.Group();
+scene.add(group);
+
+/* ---------- textures ---------- */
+function rnd(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
+function faceTexture(kind) {
+  const W = 1024, H = 512, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d'), img = ctx.createImageData(W, H), d = img.data, R = rnd(kind ? 7 : 3);
+  const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const eye = (x, y, cx, cy, a, b) => (Math.hypot((x - cx) / a, (y - cy) / b) - 1) * Math.min(a, b);
+  const arc = (x, y, cy, r, half, th, up) => {
+    let px = x, py = (y - cy) * (up ? -1 : 1);
+    let a = Math.atan2(px, -py); a = Math.max(-half, Math.min(half, a));
+    return Math.hypot(px - r * Math.sin(a), py + r * Math.cos(a)) - th;
+  };
+  for (let y = 0; y < H; y++) {
+    const th = (y + .5) / H * Math.PI, st = Math.sin(th), fy = Math.cos(th);
+    for (let x = 0; x < W; x++) {
+      const ph = (x + .5) / W * Math.PI * 2, fx = -Math.cos(ph) * st, fz = Math.sin(ph) * st;
+      let ink = 0;
+      if (fz > 0.1) {
+        let dd;
+        if (kind === 0) dd = Math.min(eye(fx, fy, -.25, .27, .095, .15), eye(fx, fy, .25, .27, .095, .15), arc(fx, fy, .12, .55, 1.08, .05, false));
+        else dd = Math.min(eye(fx, fy, -.24, .22, .09, .14), eye(fx, fy, .24, .22, .09, .14), arc(fx, fy, -.86, .55, .9, .05, true));
+        ink = 1 - ss(-.007, .007, dd);
+      }
+      const n = (R() - .5) * 18, i = (y * W + x) * 4;
+      d[i] = 252 + n * .4 + (20 - 252) * ink; d[i + 1] = 166 + n + (15 - 166) * ink; d[i + 2] = 6 + n * .3 + (10 - 6) * ink; d[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy(); t.wrapS = THREE.RepeatWrapping;
+  return t;
+}
+function weaveTexture() {
+  const S = 128, c = document.createElement('canvas'); c.width = c.height = S;
+  const ctx = c.getContext('2d'), img = ctx.createImageData(S, S), d = img.data, R = rnd(11), k = Math.PI * 2 * 4 / S;
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const a = (x + y) * k * .5, b = (x - y) * k * .5;
+    let h = Math.pow(Math.abs(Math.cos(a) * Math.cos(b)), .6);
+    h = h * .8 + R() * .2;
+    const i = (y * S + x) * 4; d[i] = d[i + 1] = d[i + 2] = h * 255; d[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(44, 22);
+  t.anisotropy = 4; return t;
+}
+
+/* ---------- balls ---------- */
+const NB = coarse ? 20 : 22;
+const balls = [];
+const uBalls = { value: Array.from({ length: NB }, () => new THREE.Vector4()) };
+const uKeyDir = { value: keyDir };
+const faceTex = [faceTexture(0), faceTexture(1)], weave = weaveTexture();
+const ballGeo = new THREE.SphereGeometry(1, 72, 48);
+
+function patchBall(shader) {
+  shader.uniforms.uBalls = uBalls; shader.uniforms.uKeyDir = uKeyDir; shader.uniforms.uSelf = this.userData.uSelf;
+  shader.vertexShader = 'varying vec3 vWPos;\nvarying vec3 vWNrm;\n' + shader.vertexShader.replace('#include <project_vertex>',
+    '#include <project_vertex>\n vWPos=(modelMatrix*vec4(transformed,1.0)).xyz; vWNrm=normalize(mat3(modelMatrix)*objectNormal);');
+  shader.fragmentShader = `
+varying vec3 vWPos; varying vec3 vWNrm;
+uniform vec4 uBalls[${NB}]; uniform vec3 uKeyDir; uniform vec3 uSelf;
+float sphOcc(vec3 pos, vec3 nor, vec4 sph){
+  vec3 di=sph.xyz-pos; float l=length(di); float nl=dot(nor,di/l); float h=max(l/sph.w,1.0005); float h2=h*h;
+  float k2=1.0-h2*nl*nl; float res=max(0.0,nl)/h2;
+  if(k2>0.001){
+    res=nl*acos(clamp(-nl*sqrt((h2-1.0)/max(1e-4,1.0-nl*nl)),-1.0,1.0))-sqrt(k2*(h2-1.0));
+    res=res/h2+atan(sqrt(k2/(h2-1.0))); res/=3.141593;
+  }
+  return clamp(res,0.0,1.0);
+}
+float sphShadow(vec3 ro, vec3 rd, vec4 sph){
+  vec3 oc=ro-sph.xyz; float b=dot(oc,rd); float c=dot(oc,oc)-sph.w*sph.w; float h=b*b-c;
+  float d=-sph.w+sqrt(max(0.0,sph.w*sph.w-h)); float t=-b-sqrt(max(0.0,h));
+  return (t<0.0)?1.0:smoothstep(0.0,1.0,3.2*d/t);
+}
+` + shader.fragmentShader.replace('#include <aomap_fragment>', `
+{
+  vec3 Nw=normalize(vWNrm); float occ=1.0; float sh=1.0; vec3 ro=vWPos+Nw*0.012;
+  for(int i=0;i<${NB};i++){
+    vec4 s=uBalls[i]; vec3 dc=s.xyz-uSelf; if(dot(dc,dc)<1e-5) continue;
+    occ*=1.0-0.92*sphOcc(vWPos,Nw,s);
+    sh=min(sh,sphShadow(ro,uKeyDir,s));
+  }
+  vec3 aoc=pow(vec3(occ),vec3(1.0,1.5,2.5));
+  reflectedLight.indirectDiffuse*=aoc; reflectedLight.indirectSpecular*=occ;
+  reflectedLight.directDiffuse*=mix(0.04,1.0,sh)*mix(vec3(1.0),aoc,0.55); reflectedLight.directSpecular*=sh;
+  #ifdef USE_SHEEN
+    sheenSpecularDirect*=sh; sheenSpecularIndirect*=occ;
+  #endif
+}
+#include <aomap_fragment>`);
+}
+
+for (let i = 0; i < NB; i++) {
+  const kind = (i % 5 === 1 || i % 5 === 3) ? 1 : 0;
+  const mat = new THREE.MeshPhysicalMaterial({
+    map: faceTex[kind], bumpMap: weave, bumpScale: .7, roughness: .92, metalness: 0,
+    sheen: .7, sheenRoughness: .55, sheenColor: new THREE.Color(1, .62, .16), envMapIntensity: 1,
+  });
+  mat.userData.uSelf = { value: new THREE.Vector3() };
+  mat.onBeforeCompile = patchBall;
+  const mesh = new THREE.Mesh(ballGeo, mat);
+  const R = .5 + (Math.random() - .5) * .05;
+  mesh.scale.setScalar(R);
+  group.add(mesh);
+  const p = new THREE.Vector3().randomDirection().multiplyScalar(Math.cbrt(Math.random()) * 1.3);
+  balls.push({
+    mesh, R, p, v: new THREE.Vector3(), w: new THREE.Vector3(), q: new THREE.Quaternion(),
+    f: new THREE.Vector3(), ph: [Math.random() * 9, Math.random() * 9, Math.random() * 9],
+    esc: null, wp: new THREE.Vector3(), look: new THREE.Vector3().randomDirection().multiplyScalar(.5),
+  });
+}
+
+/* ---------- membrane mesh (indexed icosphere, pushed out along its rays) ---------- */
+function icosphere(level) {
+  const t = (1 + Math.sqrt(5)) / 2;
+  let v = [-1, t, 0, 1, t, 0, -1, -t, 0, 1, -t, 0, 0, -1, t, 0, 1, t, 0, -1, -t, 0, 1, -t, t, 0, -1, t, 0, 1, -t, 0, -1, -t, 0, 1];
+  let f = [0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11, 1, 5, 9, 5, 11, 4, 11, 10, 2, 10, 7, 6, 7, 1, 8, 3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6, 8, 3, 8, 9, 4, 9, 5, 2, 4, 11, 6, 2, 10, 8, 6, 7, 9, 8, 1];
+  for (let i = 0; i < v.length; i += 3) { const l = Math.hypot(v[i], v[i + 1], v[i + 2]); v[i] /= l; v[i + 1] /= l; v[i + 2] /= l; }
+  for (let s = 0; s < level; s++) {
+    const cache = new Map(), nf = [];
+    const mid = (a, b) => {
+      const k = a < b ? a * 1e6 + b : b * 1e6 + a; let m = cache.get(k); if (m !== undefined) return m;
+      let x = v[a * 3] + v[b * 3], y = v[a * 3 + 1] + v[b * 3 + 1], z = v[a * 3 + 2] + v[b * 3 + 2]; const l = Math.hypot(x, y, z);
+      m = v.length / 3; v.push(x / l, y / l, z / l); cache.set(k, m); return m;
+    };
+    for (let i = 0; i < f.length; i += 3) {
+      const a = f[i], b = f[i + 1], c = f[i + 2], ab = mid(a, b), bc = mid(b, c), ca = mid(c, a);
+      nf.push(a, ab, ca, b, bc, ab, c, ca, bc, ab, bc, ca);
+    }
+    f = nf;
+  }
+  return { dir: new Float32Array(v), idx: new Uint32Array(f) };
+}
+const LEVEL = +(QS.get('lvl') || (!coarse && (navigator.hardwareConcurrency || 4) >= 8 ? 6 : 5));
+const ico = icosphere(LEVEL), NV = ico.dir.length / 3, DIR = ico.dir, IDX = ico.idx;
+const NBR = new Int32Array(NV * 6).fill(-1);
+{
+  const cnt = new Uint8Array(NV);
+  const add = (a, b) => { for (let k = 0; k < cnt[a]; k++) if (NBR[a * 6 + k] === b) return; NBR[a * 6 + cnt[a]++] = b; };
+  for (let i = 0; i < IDX.length; i += 3) { const a = IDX[i], b = IDX[i + 1], c = IDX[i + 2]; add(a, b); add(b, a); add(b, c); add(c, b); add(c, a); add(a, c); }
+  for (let i = 0; i < NV; i++) for (let k = cnt[i]; k < 6; k++) NBR[i * 6 + k] = NBR[i * 6];
+}
+const mr = new Float32Array(NV), mv = new Float32Array(NV), hard = new Float32Array(NV);
+const mpos = new Float32Array(NV * 3), mnor = new Float32Array(NV * 3), mtent = new Float32Array(NV), mstress = new Float32Array(NV);
+const memGeo = new THREE.BufferGeometry();
+memGeo.setIndex(new THREE.BufferAttribute(IDX, 1));
+memGeo.setAttribute('position', new THREE.BufferAttribute(mpos, 3).setUsage(THREE.DynamicDrawUsage));
+memGeo.setAttribute('normal', new THREE.BufferAttribute(mnor, 3).setUsage(THREE.DynamicDrawUsage));
+memGeo.setAttribute('aDir', new THREE.BufferAttribute(DIR, 3));
+memGeo.setAttribute('aTent', new THREE.BufferAttribute(mtent, 1).setUsage(THREE.DynamicDrawUsage));
+memGeo.setAttribute('aStress', new THREE.BufferAttribute(mstress, 1).setUsage(THREE.DynamicDrawUsage));
+const memMat = new THREE.MeshPhysicalMaterial({
+  color: 0x000000, roughness: .16, metalness: 0, specularIntensity: 1, envMapIntensity: .8, side: THREE.FrontSide,
+  transparent: true, depthWrite: false, premultipliedAlpha: false,
+  blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+});
+memMat.onBeforeCompile = (shader) => {
+  shader.vertexShader = 'attribute vec3 aDir; attribute float aTent; attribute float aStress;\nvarying vec3 vDir; varying float vTent; varying float vStress;\n' +
+    shader.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n vDir=aDir; vTent=aTent; vStress=aStress;');
+  shader.fragmentShader = `
+varying vec3 vDir; varying float vTent; varying float vStress;
+float h3(vec3 p){ p=fract(p*0.1031); p+=dot(p,p.zyx+31.32); return fract((p.x+p.y)*p.z); }
+float vn(vec3 x){ vec3 i=floor(x), f=fract(x); f=f*f*(3.0-2.0*f);
+  return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z); }
+float crease(vec3 p){
+  vec3 q=p+0.35*vec3(vn(p*3.0),vn(p*3.0+5.0),vn(p*3.0+9.0));
+  float a=1.0-abs(2.0*vn(q*9.0)-1.0), b=1.0-abs(2.0*vn(q*21.0+3.0)-1.0);
+  return pow(a,3.0)*0.8+pow(b,4.0)*0.3;
+}
+` + shader.fragmentShader
+    .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+{
+  float tent=smoothstep(0.03,0.6,vTent);
+  float hgt=crease(vDir)*tent*0.008;
+  vec3 vp=-vViewPosition; vec3 dpx=dFdx(vp), dpy=dFdy(vp); float hx=dFdx(hgt), hy=dFdy(hgt);
+  vec3 r1=cross(dpy,normal), r2=cross(normal,dpx); float det=dot(dpx,r1);
+  normal=normalize(abs(det)*normal-sign(det)*(hx*r1+hy*r2));
+}`)
+    .replace('#include <opaque_fragment>', `{
+  float fr=pow(1.0-abs(dot(normal,normalize(vViewPosition))),2.4);
+  float tent=smoothstep(0.05,0.8,vTent);
+  float milk=fr*(0.27+0.38*tent)+0.03*tent+vStress*(0.05+0.3*fr);
+  vec3 film=outgoingLight*0.34+vec3(0.8,0.82,0.86)*milk;
+  gl_FragColor=vec4(film,clamp(0.03+milk*0.9,0.0,0.92));
+}`);
+};
+const membrane = new THREE.Mesh(memGeo, memMat);
+membrane.frustumCulled = false; membrane.renderOrder = 2;
+group.add(membrane);
+
+const MEM_EPS = 0.02, CORE = 0.35;
+const spacing = Math.sqrt(4 * Math.PI / NV);         // angular vertex spacing
+const MEM_K = 0.5, MEM_D = 0.88, MEM_P = MEM_K * 3.2 * (2 * spacing) * (2 * spacing) / 4; // sag pressure, resolution independent
+let R_ENV = 2.1;
+const bx = new Float32Array(NB), by = new Float32Array(NB), bz = new Float32Array(NB), bk = new Float32Array(NB);
+
+function computeHard() {
+  for (let j = 0; j < NB; j++) { const b = balls[j], r = b.R + MEM_EPS; bx[j] = b.p.x; by[j] = b.p.y; bz[j] = b.p.z; bk[j] = b.p.lengthSq() - r * r; }
+  for (let i = 0, o = 0; i < NV; i++, o += 3) {
+    const dx = DIR[o], dy = DIR[o + 1], dz = DIR[o + 2]; let best = CORE;
+    for (let j = 0; j < NB; j++) {
+      const b = bx[j] * dx + by[j] * dy + bz[j] * dz; if (b <= best * .5) continue;
+      const h = b * b - bk[j]; if (h > 0) { const t = b + Math.sqrt(h); if (t > best) best = t; }
+    }
+    hard[i] = best;
+  }
+}
+const sq = { s: 0, target: 0, ax: new THREE.Vector3(1, 0, 0), W: 9 };
+const macc = new Float32Array(NV), mtmp = new Float32Array(NV * 3);
+function relaxMembrane(iter) {
+  const ax = sq.ax, W = sq.W + MEM_EPS, squeezing = sq.s > 0.01;
+  for (let s = 0; s < iter; s++) {
+    for (let i = 0, n = 0; i < NV; i++, n += 6)
+      macc[i] = (mr[NBR[n]] + mr[NBR[n + 1]] + mr[NBR[n + 2]] + mr[NBR[n + 3]] + mr[NBR[n + 4]] + mr[NBR[n + 5]]) / 6 - mr[i];
+    for (let i = 0; i < NV; i++) {
+      let vv = (mv[i] + macc[i] * MEM_K - MEM_P) * MEM_D, rr = mr[i] + vv;
+      if (squeezing) {
+        const c = Math.abs(DIR[i * 3] * ax.x + DIR[i * 3 + 1] * ax.y + DIR[i * 3 + 2] * ax.z);
+        if (c > .05) { const m = W / c; if (rr > m) { rr = m; if (vv > 0) vv = 0; } }
+      }
+      const h = hard[i]; if (rr < h) { rr = h; if (vv < 0) vv = 0; }
+      if (rr > 6) { rr = 6; vv = 0; }
+      mr[i] = rr; mv[i] = vv;
+    }
+  }
+}
+function writeMembrane() {
+  for (let i = 0, o = 0; i < NV; i++, o += 3) {
+    const r = mr[i]; mpos[o] = DIR[o] * r; mpos[o + 1] = DIR[o + 1] * r; mpos[o + 2] = DIR[o + 2] * r;
+    mtent[i] = hard[i] <= CORE ? 1 : Math.min(1, (r - hard[i]) * 9);
+    const st = (r - R_ENV) * .8; mstress[i] = st < 0 ? 0 : st > 1 ? 1 : st;
+  }
+  mnor.fill(0);
+  for (let i = 0; i < IDX.length; i += 3) {
+    const a = IDX[i] * 3, b = IDX[i + 1] * 3, c = IDX[i + 2] * 3;
+    const e1x = mpos[b] - mpos[a], e1y = mpos[b + 1] - mpos[a + 1], e1z = mpos[b + 2] - mpos[a + 2];
+    const e2x = mpos[c] - mpos[a], e2y = mpos[c + 1] - mpos[a + 1], e2z = mpos[c + 2] - mpos[a + 2];
+    const nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+    mnor[a] += nx; mnor[a + 1] += ny; mnor[a + 2] += nz; mnor[b] += nx; mnor[b + 1] += ny; mnor[b + 2] += nz; mnor[c] += nx; mnor[c + 1] += ny; mnor[c + 2] += nz;
+  }
+  for (let o = 0; o < NV * 3; o += 3) { const l = 1 / (Math.hypot(mnor[o], mnor[o + 1], mnor[o + 2]) || 1); mnor[o] *= l; mnor[o + 1] *= l; mnor[o + 2] *= l; }
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0, n = 0, o = 0; i < NV; i++, n += 6, o += 3) {
+      let x = mnor[o] * 2, y = mnor[o + 1] * 2, z = mnor[o + 2] * 2;
+      for (let k = 0; k < 6; k++) { const q = NBR[n + k] * 3; x += mnor[q]; y += mnor[q + 1]; z += mnor[q + 2]; }
+      const l = 1 / (Math.hypot(x, y, z) || 1); mtmp[o] = x * l; mtmp[o + 1] = y * l; mtmp[o + 2] = z * l;
+    }
+    mnor.set(mtmp);
+  }
+  for (let i = 0, n = 0; i < NV; i++, n += 6) macc[i] = (mtent[i] * 2 + mtent[NBR[n]] + mtent[NBR[n + 1]] + mtent[NBR[n + 2]] + mtent[NBR[n + 3]] + mtent[NBR[n + 4]] + mtent[NBR[n + 5]]) / 8;
+  mtent.set(macc);
+  const at = memGeo.attributes; at.position.needsUpdate = at.normal.needsUpdate = at.aTent.needsUpdate = at.aStress.needsUpdate = true;
+}
+
+/* ---------- sound: everything is synthesized ---------- */
+const Sfx = (() => {
+  let ctx = null, out = null, noise = null, groan = null, groanGain = null, muted = false, lastThud = 0, lastTick = 0;
+  try { muted = localStorage.getItem('luo-muted') === '1'; } catch (e) {}
+  const btn = document.getElementById('soundBtn');
+  function label() {
+    const blocked = ctx && ctx.state !== 'running' && !muted;
+    btn.textContent = muted ? 'Sound off' : blocked ? 'Tap for sound' : 'Sound on';
+    btn.classList.toggle('warn', !!blocked); btn.setAttribute('aria-pressed', String(!muted));
+  }
+  function init() {
+    if (ctx) return;
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    ctx = new AC();
+    const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 5;
+    out = ctx.createGain(); out.gain.value = muted ? 0 : .9; out.connect(comp); comp.connect(ctx.destination);
+    noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    // rubber groan that follows how far the bag is stretched
+    groan = ctx.createOscillator(); groan.type = 'sawtooth'; groan.frequency.value = 70;
+    const lp = ctx.createBiquadFilter(); lp.type = 'bandpass'; lp.frequency.value = 240; lp.Q.value = 5;
+    groanGain = ctx.createGain(); groanGain.gain.value = 0;
+    const wob = ctx.createOscillator(); wob.frequency.value = 23; const wg = ctx.createGain(); wg.gain.value = 9; wob.connect(wg); wg.connect(groan.frequency);
+    groan.connect(lp); lp.connect(groanGain); groanGain.connect(out); groan.start(); wob.start(); groan._lp = lp;
+    ctx.onstatechange = label;
+  }
+  function unlock() {
+    init(); if (!ctx) return;
+    if (ctx.state !== 'running') ctx.resume().then(label, label);
+    setTimeout(label, 350);
+  }
+  const ok = () => ctx && ctx.state === 'running' && !muted;
+  function burst(dur, type, f0, f1, q, gain, when = 0) {
+    const t = ctx.currentTime + when, src = ctx.createBufferSource(); src.buffer = noise; src.loop = true;
+    src.loopStart = Math.random() * .8; src.loopEnd = src.loopStart + .15;
+    const fl = ctx.createBiquadFilter(); fl.type = type; fl.Q.value = q; fl.frequency.setValueAtTime(f0, t); fl.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(gain, t + .004); g.gain.exponentialRampToValueAtTime(.0005, t + dur);
+    src.connect(fl); fl.connect(g); g.connect(out); src.start(t, src.loopStart); src.stop(t + dur + .02);
+  }
+  function tone(type, f0, f1, dur, gain, when = 0) {
+    const t = ctx.currentTime + when, o = ctx.createOscillator(), g = ctx.createGain(); o.type = type;
+    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(gain, t + .006); g.gain.exponentialRampToValueAtTime(.0005, t + dur);
+    o.connect(g); g.connect(out); o.start(t); o.stop(t + dur + .02);
+  }
+  return {
+    unlock, label,
+    toggle() { muted = !muted; try { localStorage.setItem('luo-muted', muted ? '1' : '0'); } catch (e) {} init(); if (out) out.gain.value = muted ? 0 : .9; unlock(); label(); },
+    poke(s = 1) { if (!ok()) return; tone('sine', 380 + Math.random() * 90, 120, .13, .32 * s); tone('sine', 900, 300, .05, .08 * s); burst(.06, 'lowpass', 1800, 300, .7, .22 * s); },
+    snap(a) { if (!ok()) return; a = Math.min(1, a); tone('sine', 150 + a * 130, 55, .2, .16 + .4 * a); burst(.11 + .1 * a, 'bandpass', 2600 + a * 1800, 260, 1.2, .14 + .5 * a); tone('triangle', 620 + a * 500, 180, .07, .05 + .1 * a, .012); },
+    thud(a) { if (!ok()) return; const n = ctx.currentTime; if (n - lastThud < .045) return; lastThud = n; a = Math.min(1, a); burst(.05, 'lowpass', 420 + a * 500, 120, .6, .05 + .22 * a); tone('sine', 115 + Math.random() * 40, 60, .07, .03 + .1 * a); },
+    crinkle(a) { // little plastic ticks, more of them the faster the bag stretches
+      if (!ok()) return; const n = ctx.currentTime; if (n - lastTick < .012) return; lastTick = n;
+      burst(.008 + Math.random() * .02, 'bandpass', 2200 + Math.random() * 4200, 1500, 2.5 + Math.random() * 5, Math.min(.2, .03 + a * .16) * (.4 + Math.random() * .6));
+    },
+    stretch(amount, rate) { // amount 0..1 how far, rate how fast
+      if (!ctx || !groanGain) return; const t = ctx.currentTime, on = ok() ? 1 : 0;
+      groanGain.gain.setTargetAtTime(on * Math.min(.16, rate * .1) * Math.min(1, amount * 2), t, .06);
+      groan.frequency.setTargetAtTime(62 + amount * 95, t, .05); groan._lp.frequency.setTargetAtTime(220 + amount * 900, t, .05);
+    },
+    get state() { return ctx ? ctx.state : 'none'; }, get muted() { return muted; },
+  };
+})();
+document.getElementById('soundBtn').addEventListener('click', () => Sfx.toggle());
+addEventListener('pointerdown', () => Sfx.unlock(), true);
+addEventListener('keydown', () => Sfx.unlock(), true);
+addEventListener('touchend', () => Sfx.unlock(), true);
+Sfx.label();
+
+/* ---------- physics ---------- */
+const DT = 1 / 120, K1 = 13, K2 = 46, R_REST = 1.0;
+let simT = 0, grabbed = -1, nextEscape = 1.5, stretchNow = 0, stretchPrev = 0;
+const grabTarget = new THREE.Vector3(), tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), tq = new THREE.Quaternion();
+const contact = new Uint8Array(NB * NB);
+const invQ = new THREE.Quaternion();
+let quiet = false; // true while pre-warming, no sound
+
+function startEscape() {
+  let pick = -1, best = -1;
+  for (let i = 0; i < NB; i++) {
+    const b = balls[i]; if (b.esc || i === grabbed) continue;
+    const sc = b.p.length() * (.6 + Math.random());
+    if (sc > best) { best = sc; pick = i; }
+  }
+  if (pick < 0) return;
+  const b = balls[pick];
+  const dir = b.p.clone().normalize().add(tmp.randomDirection().multiplyScalar(.25)).normalize();
+  b.esc = { dir, t: 0, T: 1.1 + Math.random() * 1.5, A: (reduced ? 30 : 46) + Math.random() * 44, f: 5 + Math.random() * 6 };
+  if (Math.random() < .3) { // a neighbour joins in
+    let nb = -1, nd = 9; for (let i = 0; i < NB; i++) { if (i === pick || balls[i].esc || i === grabbed) continue; const d = balls[i].p.distanceTo(b.p); if (d < nd) { nd = d; nb = i; } }
+    if (nb >= 0) balls[nb].esc = { dir: dir.clone(), t: -.15, T: b.esc.T, A: b.esc.A * .8, f: b.esc.f + 1 };
+  }
+}
+
+function step() {
+  simT += DT;
+  invQ.copy(group.quaternion).invert();
+  sq.s += (sq.target - sq.s) * Math.min(1, DT * 9);
+  sq.W = 3.4 - sq.s * 2.15;
+  sq.ax.set(1, 0, 0).applyQuaternion(invQ);
+  if (!quiet && simT > nextEscape) { startEscape(); nextEscape = simT + (reduced ? 2.6 : .7) + Math.random() * 1.9; }
+
+  let maxExt = 0;
+  for (let i = 0; i < NB; i++) {
+    const b = balls[i], f = b.f, l = b.p.length() || 1e-6;
+    const ext = l + b.R - R_REST, over = l + b.R - R_ENV;
+    let T = ext > 0 ? K1 * ext : 0; if (over > 0) { T += K2 * over * (1 + .35 * over * over); if (over > maxExt) maxExt = over; }
+    f.copy(b.p).multiplyScalar(-T / l);
+    // restless squirming
+    f.x += Math.sin(simT * 1.7 + b.ph[0]) * 2.4 + Math.sin(simT * 4.1 + b.ph[1]) * 1.2;
+    f.y += Math.sin(simT * 1.9 + b.ph[1]) * 2.4 + Math.sin(simT * 3.7 + b.ph[2]) * 1.2;
+    f.z += Math.sin(simT * 1.5 + b.ph[2]) * 2.4 + Math.sin(simT * 4.6 + b.ph[0]) * 1.2;
+    if (b.esc) {
+      const e = b.esc; e.t += DT;
+      if (e.t > e.T) { if (!quiet && over > .25) Sfx.snap(over * .35); b.esc = null; }
+      else if (e.t > 0) { const u = e.t / e.T, env = Math.pow(Math.sin(Math.PI * Math.min(1, u * 1.15) * .5), .7) * (1 + .22 * Math.sin(e.t * e.f * 6.283)); f.addScaledVector(e.dir, e.A * env); }
+    }
+    if (i === grabbed) { tmp.copy(grabTarget).applyQuaternion(invQ).sub(b.p); f.addScaledVector(tmp, 300); f.addScaledVector(b.v, -16); }
+    b.v.addScaledVector(f, DT); b.v.multiplyScalar(1 - 3.2 * DT);
+    b.p.addScaledVector(b.v, DT);
+  }
+  for (let it = 0; it < 6; it++) {
+    for (let i = 0; i < NB; i++) {
+      const a = balls[i];
+      // squeeze paddles
+      const d = a.p.dot(sq.ax), lim = sq.W - a.R;
+      if (d > lim) { a.p.addScaledVector(sq.ax, lim - d); const vn = a.v.dot(sq.ax); if (vn > 0) a.v.addScaledVector(sq.ax, -vn); }
+      else if (d < -lim) { a.p.addScaledVector(sq.ax, -lim - d); const vn = a.v.dot(sq.ax); if (vn < 0) a.v.addScaledVector(sq.ax, -vn); }
+      for (let j = i + 1; j < NB; j++) {
+        const b = balls[j]; tmp.subVectors(b.p, a.p); const rr = a.R + b.R, d2 = tmp.lengthSq();
+        if (d2 >= rr * rr) { if (it === 0) contact[i * NB + j] = 0; continue; }
+        const dist = Math.sqrt(d2) || 1e-6, pen = rr - dist; tmp.multiplyScalar(1 / dist);
+        a.p.addScaledVector(tmp, -pen * .5); b.p.addScaledVector(tmp, pen * .5);
+        tmp2.subVectors(b.v, a.v); const vn = tmp2.dot(tmp);
+        if (vn < 0) {
+          if (it === 0 && !contact[i * NB + j] && vn < -1.1 && !quiet) Sfx.thud(-vn * .12);
+          a.v.addScaledVector(tmp, vn * .55); b.v.addScaledVector(tmp, -vn * .55);
+        }
+        if (it === 0) {
+          contact[i * NB + j] = 1;
+          // rolling: slip along the contact turns both balls
+          tmp2.addScaledVector(tmp, -vn); const cx = tmp.y * tmp2.z - tmp.z * tmp2.y, cy = tmp.z * tmp2.x - tmp.x * tmp2.z, cz = tmp.x * tmp2.y - tmp.y * tmp2.x, k = .5 * DT * 60 * .08;
+          a.w.x += cx * k / a.R; a.w.y += cy * k / a.R; a.w.z += cz * k / a.R; b.w.x += cx * k / b.R; b.w.y += cy * k / b.R; b.w.z += cz * k / b.R;
+        }
+      }
+    }
+  }
+  for (let i = 0; i < NB; i++) {
+    const b = balls[i]; b.w.multiplyScalar(1 - 2.2 * DT);
+    tmp.set(0, 0, 1).applyQuaternion(b.q); tmp2.copy(b.p).normalize().add(b.look).normalize(); tmp.cross(tmp2); b.w.addScaledVector(tmp, 7 * DT);
+    const wl = b.w.length(); if (wl > 1e-5) { tq.setFromAxisAngle(tmp.copy(b.w).multiplyScalar(1 / wl), wl * DT); b.q.premultiply(tq).normalize(); }
+  }
+  stretchNow = maxExt;
+}
+
+/* ---------- settle before the first frame ---------- */
+quiet = true;
+R_ENV = 9; for (let i = 0; i < 700; i++) step();
+R_ENV = 0; for (const b of balls) R_ENV = Math.max(R_ENV, b.p.length() + b.R); R_ENV += .03;
+for (const b of balls) { tq.setFromUnitVectors(tmp.set(0, 0, 1), tmp2.copy(b.p).normalize().add(b.look).normalize()); b.q.copy(tq).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), (Math.random() - .5) * 2.4)); }
+for (const b of balls) { b.v.set(0, 0, 0); b.w.set(0, 0, 0); }
+computeHard(); { let m = 0; for (let i = 0; i < NV; i++) m = Math.max(m, hard[i]); for (let i = 0; i < NV; i++) mr[i] = hard[i] <= CORE ? m * .8 : hard[i]; }
+relaxMembrane(260);
+quiet = false; simT = 0; nextEscape = 1.2;
+
+/* ---------- pointer: drag a ball, tap to poke, drag the dark to spin, pinch or scroll to squeeze ---------- */
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), plane = new THREE.Plane(), camDir = new THREE.Vector3();
+const pointers = new Map();
+let mode = null, downAt = 0, downX = 0, downY = 0, moved = false, pinch0 = 0, spinX = 0, spinY = 0, lastTouch = performance.now() - 9e3, wheelT = 0, keySq = false, btnSq = false, pinchSq = 0, wheelSq = 0;
+const grabOff = new THREE.Vector3(), hitP = new THREE.Vector3();
+function setRay(e) { const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera); }
+function pickBall() {
+  let best = -1, bt = 1e9; const o = ray.ray.origin, d = ray.ray.direction;
+  for (let i = 0; i < NB; i++) {
+    const b = balls[i]; tmp.subVectors(b.wp, o); const tc = tmp.dot(d); if (tc < 0) continue;
+    const d2 = tmp.lengthSq() - tc * tc, r2 = b.R * b.R; if (d2 > r2) continue;
+    const t = tc - Math.sqrt(r2 - d2); if (t < bt) { bt = t; best = i; }
+  }
+  if (best >= 0) hitP.copy(o).addScaledVector(d, bt);
+  return best;
+}
+function hush() { document.getElementById('hints').classList.add('quiet'); }
+canvas.addEventListener('pointerdown', (e) => {
+  canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId, e); lastTouch = performance.now(); hush();
+  if (pointers.size === 2) {
+    if (grabbed >= 0) grabbed = -1; mode = 'pinch'; canvas.classList.remove('grabbing');
+    const [a, b] = [...pointers.values()]; pinch0 = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1; return;
+  }
+  if (pointers.size > 2) return;
+  setRay(e); downAt = performance.now(); downX = e.clientX; downY = e.clientY; moved = false;
+  const hit = pickBall();
+  if (hit >= 0) {
+    mode = 'ball'; grabbed = hit; balls[hit].esc = null;
+    camera.getWorldDirection(camDir); plane.setFromNormalAndCoplanarPoint(camDir, balls[hit].wp);
+    ray.ray.intersectPlane(plane, tmp); grabOff.subVectors(balls[hit].wp, tmp); grabTarget.copy(balls[hit].wp);
+    canvas.classList.add('grabbing');
+  } else { mode = 'spin'; spinX = spinY = 0; canvas.classList.add('grabbing'); }
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (!pointers.has(e.pointerId)) { setRay(e); canvas.classList.toggle('over', pickBall() >= 0); return; }
+  const prev = pointers.get(e.pointerId); pointers.set(e.pointerId, e); lastTouch = performance.now();
+  if (mode === 'pinch' && pointers.size >= 2) {
+    const [a, b] = [...pointers.values()]; const dd = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    pinchSq = Math.max(0, Math.min(1, (1 - dd / pinch0) * 1.9)); return;
+  }
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 7) moved = true;
+  if (mode === 'ball' && grabbed >= 0) {
+    setRay(e); if (ray.ray.intersectPlane(plane, tmp)) { grabTarget.copy(tmp).add(grabOff); const l = grabTarget.length(); if (l > 4) grabTarget.multiplyScalar(4 / l); }
+  } else if (mode === 'spin') {
+    const k = 4.2 / Math.min(innerWidth, innerHeight); spinY = (e.clientX - prev.clientX) * k; spinX = (e.clientY - prev.clientY) * k;
+    applySpin(spinX, spinY);
+  }
+});
+function endPointer(e) {
+  if (!pointers.has(e.pointerId)) return; pointers.delete(e.pointerId);
+  if (mode === 'pinch') { if (pointers.size < 2) { pinchSq = 0; mode = null; } return; }
+  if (mode === 'ball' && grabbed >= 0) {
+    const b = balls[grabbed];
+    if (!moved && performance.now() - downAt < 320) {
+      setRay(e); tmp.copy(ray.ray.direction).applyQuaternion(invQ.copy(group.quaternion).invert());
+      b.v.addScaledVector(tmp, 8.5); b.w.add(tmp2.randomDirection().multiplyScalar(5)); Sfx.poke(1);
+    } else { const over = Math.max(0, b.p.length() + b.R - R_ENV); if (over > .12) Sfx.snap(over * .55); }
+    grabbed = -1;
+  }
+  mode = null; canvas.classList.remove('grabbing');
+}
+canvas.addEventListener('pointerup', endPointer); canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('wheel', (e) => { e.preventDefault(); hush(); wheelSq = Math.max(0, Math.min(1, wheelSq + Math.abs(e.deltaY) * .0022)); wheelT = performance.now(); lastTouch = wheelT; Sfx.unlock(); }, { passive: false });
+addEventListener('keydown', (e) => { if (e.code === 'Space') { keySq = true; e.preventDefault(); hush(); } });
+addEventListener('keyup', (e) => { if (e.code === 'Space') keySq = false; });
+{
+  const b = document.getElementById('squeezeBtn');
+  const on = (e) => { btnSq = true; b.classList.add('on'); hush(); try { b.setPointerCapture(e.pointerId); } catch (_) {} };
+  const off = () => { btnSq = false; b.classList.remove('on'); };
+  b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('lostpointercapture', off);
+  b.addEventListener('keydown', (e) => { if (e.code === 'Enter') { btnSq = true; b.classList.add('on'); } });
+  b.addEventListener('keyup', (e) => { if (e.code === 'Enter') off(); });
+  b.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+const qa = new THREE.Quaternion(), X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0);
+function applySpin(rx, ry) { qa.setFromAxisAngle(Y, ry); group.quaternion.premultiply(qa); qa.setFromAxisAngle(X, rx); group.quaternion.premultiply(qa); group.quaternion.normalize(); }
+
+/* ---------- frame loop ---------- */
+function resize() {
+  const w = canvas.clientWidth || innerWidth, h = canvas.clientHeight || innerHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h;
+  camera.updateProjectionMatrix(); placeCamera(0);
+}
+let zoomR = FIT_R;
+function placeCamera(dt) { // ease back a little when the bag is stretched far, so the escaping ball stays in view
+  const want = FIT_R + Math.min(1.5, stretchNow) * .7; zoomR += (want - zoomR) * (dt ? Math.min(1, dt * 3) : 1);
+  camera.position.set(0, 0, zoomR / Math.tan(camera.fov * Math.PI / 360) / Math.min(1, camera.aspect)); camera.lookAt(0, 0, 0);
+}
+addEventListener('resize', resize); resize();
+
+const statEl = document.getElementById('stat');
+let last = performance.now(), acc = 0, statT = 0, sqPrev = 0, frozen = false;
+function syncMeshes() {
+  group.updateMatrixWorld(true);
+  for (let i = 0; i < NB; i++) {
+    const b = balls[i]; b.mesh.position.copy(b.p); b.mesh.quaternion.copy(b.q);
+    b.wp.copy(b.p).applyQuaternion(group.quaternion);
+    uBalls.value[i].set(b.wp.x, b.wp.y, b.wp.z, b.R); b.mesh.material.userData.uSelf.value.copy(b.wp);
+  }
+}
+function frame(now) {
+  if (!frozen) requestAnimationFrame(frame);
+  let dt = Math.min(.05, (now - last) / 1000); last = now;
+  // squeeze input
+  if (now - wheelT > 260) wheelSq *= Math.pow(.002, dt);
+  sq.target = Math.max(wheelSq, pinchSq, keySq || btnSq ? 1 : 0);
+  // spin inertia and idle drift
+  if (mode !== 'spin') {
+    spinX *= Math.pow(.02, dt); spinY *= Math.pow(.02, dt);
+    const idle = (now - lastTouch) > 2600 && !reduced ? .0016 : 0;
+    applySpin(spinX, spinY + idle * dt * 60);
+  }
+  acc += dt; let n = 0; while (acc >= DT && n < 6) { step(); acc -= DT; n++; } if (n === 6) acc = 0;
+  computeHard(); relaxMembrane(2); writeMembrane(); syncMeshes();
+  // sound that follows the stretch
+  const rate = Math.abs(stretchNow - stretchPrev) / Math.max(dt, .004), sqRate = Math.abs(sq.s - sqPrev) / Math.max(dt, .004);
+  stretchPrev = stretchNow; sqPrev = sq.s;
+  const user = grabbed >= 0 ? 1 : .32;
+  Sfx.stretch(Math.min(1, stretchNow / 1.6), rate * user);
+  if (Math.random() < (rate * .5 * user + sqRate * 1.4) * dt * 60 * .25) Sfx.crinkle(Math.min(1, rate * .4 * user + sqRate * .5));
+  statT += dt; if (statT > .1) { statT = 0; statEl.textContent = 'bag stretch ' + Math.round(100 * (1 + stretchNow / R_ENV)) + '%'; }
+  placeCamera(dt);
+  renderer.render(scene, camera);
+}
+requestAnimationFrame((t) => { last = t; frame(t); });
+
+// test hooks
+window.__luo = { computeHard, relaxMembrane, writeMembrane, balls, step, Sfx, sq, group, camera, renderer,
+  grab(i, x, y, z) { grabbed = i; balls[i].esc = null; grabTarget.set(x, y, z); }, release() { grabbed = -1; },
+  squeeze(v) { wheelSq = v; wheelT = 1e15; }, stretch: () => stretchNow, nv: NV };
+</script>
+
+<style>
+#lb-back{position:fixed;z-index:2147483000;left:50%;top:calc(env(safe-area-inset-top,0px) + 12px);transform:translateX(-50%);
+  display:inline-flex;align-items:center;gap:8px;padding:9px 16px 9px 12px;border-radius:999px;text-decoration:none;white-space:nowrap;
+  font:600 13px/1 ui-rounded,"SF Pro Rounded","Segoe UI",system-ui,sans-serif;letter-spacing:.01em;color:#fff;
+  background:linear-gradient(180deg,#4aa0f2,#1f6fd1);border:1px solid rgba(255,255,255,.55);
+  box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 6px 18px rgba(0,0,0,.28);-webkit-tap-highlight-color:transparent;transition:transform .15s ease}
+#lb-back:hover{transform:translateX(-50%) translateY(-1px)}#lb-back:active{transform:translateX(-50%) scale(.96)}
+#lb-back:focus-visible{outline:3px solid #fff;outline-offset:2px}
+#lb-back svg{width:15px;height:15px;flex:none}
+@media (prefers-reduced-motion:reduce){#lb-back{transition:none}}
+</style>
+<a id="lb-back" href="/" aria-label="Back to the LennyBug keyring"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 3 4.5 8l5 5"/></svg>LennyBug</a>
+</body>
+</html>

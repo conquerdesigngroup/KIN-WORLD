@@ -217,7 +217,7 @@ body.at-timeline .tl { visibility: visible; opacity: 1; transform: none; transit
 </style>
 
 <div class="sky" id="sky" aria-hidden="true"></div>
-<canvas id="gl" tabindex="-1" aria-label="A chrome keyring with six charms you can drag and swing. Each charm opens a page."></canvas>
+<canvas id="gl" tabindex="-1" aria-label="A chrome keyring with eight charms you can drag and swing. Each charm opens a page."></canvas>
 <div class="loading" id="loading">Hanging up the keychain…</div>
 
 <div class="hud pill brand"><i></i>LennyBug</div>
@@ -302,6 +302,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const FONT_DATA = /*__FONT__*/{};
+const PIECE_BASE = '/*__PIECE_BASE__*/';   // empty on the site (pieces are sibling pages); the live site's address inside a Claude artifact
 const font = new FontLoader().parse(FONT_DATA);
 const $ = id => document.getElementById(id);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -318,7 +319,7 @@ renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
-const FOV = 26, TOP = 4.85, BOT = -3.75, HALF_W = 1.9;
+const FOV = 26, TOP = 4.85, BOT = -5.0, HALF_W = 1.9;
 const camera = new THREE.PerspectiveCamera(FOV, 1, 1, 80);
 const camBase = v(), camLook = v();
 let viewW = 1, viewH = 1;
@@ -505,6 +506,115 @@ function buildDino() {
   g.add(eyelet(0.74));
   return g;
 }
+/* ---- charms for the interactive pieces: each is a small model of the piece it opens ---- */
+const glow = (color, k = 1.4) => new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: k, roughness: 0.3 });
+const matte = (color, o = {}) => new THREE.MeshPhysicalMaterial({ color, roughness: 0.55, clearcoat: 0.35, clearcoatRoughness: 0.3, ...o });
+function buildSignal() {   // Lucky Crossing: the yellow three-light signal head
+  const g = new THREE.Group(), Y = enamel(0xf7a707, { roughness: 0.2 }), lensR = 0.165;
+  const symbols = [
+    () => { const s = new THREE.Shape(); s.moveTo(0, -0.1); s.bezierCurveTo(-0.03, -0.075, -0.115, -0.02, -0.115, 0.04); s.bezierCurveTo(-0.115, 0.1, -0.045, 0.115, 0, 0.06); s.bezierCurveTo(0.045, 0.115, 0.115, 0.1, 0.115, 0.04); s.bezierCurveTo(0.115, -0.02, 0.03, -0.075, 0, -0.1); return [mesh(new THREE.ExtrudeGeometry(s, { depth: 0.02, bevelEnabled: false }), glow(0xff2a3c, 1.6))]; },
+    () => { const s = new THREE.Shape(); for (let i = 0; i < 10; i++) { const a = Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 0.05 : 0.118; s[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); } return [mesh(new THREE.ExtrudeGeometry(s, { depth: 0.02, bevelEnabled: false }), glow(0xffb400, 1.5))]; },
+    () => [0xff3b6b, 0xffc21a, 0x2fe08a, 0x4aa8ff].map((c, i) => { const t = mesh(new THREE.TorusGeometry(0.115 - i * 0.027, 0.012, 6, 24, Math.PI), glow(c, 1.5), 0, -0.05, 0.01); return t; })
+  ];
+  symbols.forEach((sym, i) => {
+    const y = 0.47 - i * 0.47, box = new THREE.Group(); box.position.y = y;
+    box.add(mesh(new RoundedBoxGeometry(0.56, 0.44, 0.34, 5, 0.06), Y));
+    const lens = mesh(new THREE.CylinderGeometry(lensR, lensR, 0.05, 36).rotateX(Math.PI / 2), bead, 0, 0, 0.165); box.add(lens);
+    sym().forEach(m => { m.position.z += 0.19; m.castShadow = false; box.add(m); });
+    const hood = mesh(new THREE.CylinderGeometry(lensR + 0.025, lensR + 0.025, 0.2, 28, 1, true, -Math.PI / 2 - 1.25, 2.5).rotateX(Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: 0x0b0b12, roughness: 0.3, clearcoat: 1, side: THREE.DoubleSide }), 0, 0, 0.26);
+    box.add(hood);
+    for (const sy of [-1, 1]) box.add(mesh(new THREE.BoxGeometry(0.02, 0.1, 0.02), bead, 0.285, sy * 0.09, 0.02));   // side vents
+    g.add(box);
+  });
+  g.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.5, 16), chrome, 0, 0, -0.19));                                  // a little length of pole behind
+  g.add(mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.07, 20), chrome, 0, 0.72, 0), eyelet(0.84));
+  return g;
+}
+function buildPlayer() {   // Kin Audio CDX-88: white deck, dark disc with an orange label, lime dock with cartridges
+  const g = new THREE.Group(), inner = new THREE.Group(), W = enamel(0xf4f1ea, { roughness: 0.28 }), OR = enamel(0xff5a1f), LIME = enamel(0xa6d80f);
+  inner.add(mesh(new RoundedBoxGeometry(1.16, 0.8, 0.15, 5, 0.06), W, 0, -0.1, 0));
+  inner.add(mesh(new RoundedBoxGeometry(1.14, 0.78, 0.03, 3, 0.012), enamel(0xff8a1f), 0, -0.1, -0.085));
+  const disc = new THREE.Group(); disc.position.set(-0.24, -0.06, 0.08);
+  disc.add(mesh(new THREE.CylinderGeometry(0.33, 0.33, 0.02, 48).rotateX(Math.PI / 2), LIME));
+  disc.add(mesh(new THREE.CylinderGeometry(0.285, 0.285, 0.03, 48).rotateX(Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: 0x2a1418, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08 }), 0, 0, 0.012));
+  disc.add(mesh(new THREE.CylinderGeometry(0.115, 0.115, 0.034, 32).rotateX(Math.PI / 2), OR, 0, 0, 0.018));
+  disc.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.07, 20).rotateX(Math.PI / 2), chrome, 0, 0, 0.03));
+  inner.add(disc);
+  inner.add(mesh(new RoundedBoxGeometry(0.4, 0.16, 0.03, 3, 0.012), bead, 0.32, 0.08, 0.08));                          // display
+  const wave = mesh(new THREE.BoxGeometry(0.3, 0.018, 0.01), glow(0xff5a1f, 1.8), 0.32, 0.1, 0.098); wave.castShadow = false; inner.add(wave);
+  const wave2 = mesh(new THREE.BoxGeometry(0.2, 0.014, 0.01), glow(0x4aa8ff, 1.6), 0.29, 0.055, 0.098); wave2.castShadow = false; inner.add(wave2);
+  for (let i = 0; i < 4; i++) inner.add(mesh(new RoundedBoxGeometry(0.085, 0.13, 0.05, 3, 0.015), i === 1 ? OR : enamel(0xe6e1d3), 0.165 + i * 0.1, -0.28, 0.085));   // transport keys
+  for (const sy of [0, 1]) inner.add(mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.07, 20).rotateZ(Math.PI / 2), OR, 0.6, -0.02 - sy * 0.2, 0.0));                   // side knobs
+  inner.add(mesh(new RoundedBoxGeometry(0.72, 0.12, 0.2, 4, 0.03), LIME, 0, 0.34, -0.02));                          // cartridge dock
+  [[0x2f7bff, -0.175], [0xff5a1f, 0.175]].forEach(([c, x]) => {
+    inner.add(mesh(new RoundedBoxGeometry(0.3, 0.24, 0.07, 3, 0.02), enamel(c), x, 0.47, -0.02));
+    inner.add(mesh(new THREE.BoxGeometry(0.24, 0.1, 0.01), white, x, 0.5, 0.017));
+  });
+  inner.position.y = -0.08;
+  g.add(inner, mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.28, 12), chrome, 0, 0.42, -0.02), eyelet(0.62));   // chrome post up between the cartridges
+  return g;
+}
+function smileyBall(r, sad, tilt = 0) {   // yellow felt ball with a stitched face
+  const b = new THREE.Group();
+  b.add(sphere(r, matte(0xf7b40a, { sheen: 1, sheenRoughness: 0.6, sheenColor: 0xffe08a }), 0, 0, 0));
+  for (const sx of [-1, 1]) b.add(sphere(r * 0.105, bead, sx * r * 0.3, r * 0.22, r * 0.9, 1, 1.5, 0.5));
+  const m = mesh(new THREE.TorusGeometry(r * 0.36, r * 0.05, 8, 24, Math.PI * 0.8), bead, 0, sad ? -r * 0.52 : -r * 0.08, r * 0.86);
+  m.rotation.z = sad ? Math.PI * 0.1 : Math.PI * 1.1; m.rotation.x = sad ? 0.25 : -0.2; b.add(m);
+  b.rotation.set(0, tilt * 0.5, tilt); return b;
+}
+function buildBag() {   // Let Us Out: smiley balls squeezed into a clear bag, knotted at the top
+  const g = new THREE.Group();
+  [[-0.2, -0.3, 0.06, 0.27, 0, 0.25], [0.24, -0.24, 0.02, 0.26, 1, -0.3], [0.02, 0.1, 0.1, 0.25, 0, -0.1], [-0.26, 0.12, -0.08, 0.2, 1, 0.5], [0.27, 0.16, -0.1, 0.19, 0, -0.5], [0.03, -0.42, -0.16, 0.2, 0, 0]].forEach(([x, y, z, r, sad, t]) => { const b = smileyBall(r, sad, t); b.position.set(x, y, z); g.add(b); });
+  const pts = [[0, -0.66], [0.3, -0.63], [0.52, -0.42], [0.58, -0.12], [0.5, 0.2], [0.3, 0.42], [0.1, 0.56], [0.055, 0.62]].map(([x, y]) => new THREE.Vector2(x, y));
+  const film = new THREE.LatheGeometry(new THREE.SplineCurve(pts).getPoints(40), 48); film.scale(1, 1, 0.72);
+  const mats = acrylic(0xdff2ff, 0.1); mats.back.opacity = 0.16; mats.back.emissiveIntensity = 0.1; mats.front.emissiveIntensity = 0.05;
+  g.add(acrylicMesh(film, mats));
+  g.add(mesh(new THREE.TorusGeometry(0.06, 0.028, 10, 24).rotateX(Math.PI / 2), enamel(0xff3d2e), 0, 0.6, 0));        // red twist tie
+  const tuft = new THREE.LatheGeometry([[0.05, 0.6], [0.1, 0.68], [0.15, 0.74]].map(([x, y]) => new THREE.Vector2(x, y)), 24);
+  g.add(acrylicMesh(tuft, mats), eyelet(0.7));
+  return g;
+}
+function buildGrenade() {   // Smiley Grenade: see-through purple toy with a gold smiley, steel top and a glowing lever
+  const g = new THREE.Group(), P = acrylic(0x5a14d8, 0.5); P.back.opacity = 0.75;
+  const body = new THREE.SphereGeometry(0.46, 40, 28); body.scale(1, 1.1, 1); const bm = acrylicMesh(body, P); bm.position.y = -0.2; g.add(bm);
+  const groove = new THREE.MeshPhysicalMaterial({ color: 0x2a0a78, roughness: 0.2, clearcoat: 1 });
+  for (const y of [-0.42, -0.2, 0.02]) { const r = 0.46 * Math.sqrt(Math.max(0, 1 - ((y + 0.2) / 0.506) ** 2)); g.add(mesh(new THREE.TorusGeometry(r + 0.004, 0.014, 8, 48).rotateX(Math.PI / 2), groove, 0, y, 0)); }
+  for (let i = 0; i < 4; i++) { const t = mesh(new THREE.TorusGeometry(0.47, 0.014, 8, 40), groove, 0, -0.2, 0); t.scale.y = 1.1; t.rotation.y = Math.PI / 8 + i * Math.PI / 4; g.add(t); }
+  const face = new THREE.Group(); face.position.set(0, -0.2, 0.455);
+  face.add(mesh(new THREE.SphereGeometry(0.2, 32, 16).scale(1, 1, 0.22), enamel(0xffc21a, { roughness: 0.15 })));
+  for (const sx of [-1, 1]) face.add(sphere(0.026, bead, sx * 0.07, 0.05, 0.04, 1, 1.5, 0.5));
+  const sm = mesh(new THREE.TorusGeometry(0.095, 0.014, 8, 24, Math.PI * 0.8), bead, 0, 0.0, 0.035); sm.rotation.z = Math.PI * 1.1; face.add(sm); g.add(face);
+  g.add(mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.1, 28), chrome, 0, 0.32, 0), mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.18, 24), chrome, 0, 0.45, 0));
+  const lever = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([v(0.02, 0.53, 0), v(0.28, 0.5, 0), v(0.5, 0.24, 0), v(0.57, -0.15, 0), v(0.53, -0.48, 0)]), 28, 0.04, 10), glow(0x7fe9ff, 0.9));
+  lever.scale.z = 3.2; lever.castShadow = true; g.add(lever);
+  const pin = mesh(new THREE.TorusGeometry(0.15, 0.022, 10, 32), chrome, -0.3, 0.42, 0.06); pin.rotation.y = 0.5; g.add(pin);
+  g.add(mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.3, 10).rotateZ(Math.PI / 2), chrome, -0.1, 0.45, 0.02));
+  g.add(mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.12, 14), chrome, 0, 0.58, 0), eyelet(0.7));
+  return g;
+}
+function buildLighter() {   // Flick: flip-top lighter in the aurora finish, lid open, rainbow flame
+  const g = new THREE.Group(), inner = new THREE.Group();
+  const A = new THREE.MeshPhysicalMaterial({ color: 0xcfd2ff, metalness: 1, roughness: 0.1, iridescence: 1, iridescenceIOR: 2.1, iridescenceThicknessRange: [180, 620], clearcoat: 1, clearcoatRoughness: 0.03 });
+  const W = 0.6, D = 0.22;
+  inner.add(mesh(new RoundedBoxGeometry(W, 0.56, D, 5, 0.06), A, 0, -0.34, 0));
+  const lid = new THREE.Group(); lid.position.set(-W / 2, -0.05, 0);
+  lid.add(mesh(new RoundedBoxGeometry(W, 0.32, D, 5, 0.06), A, W / 2, 0.165, 0)); lid.rotation.z = 2.05; inner.add(lid);
+  inner.add(mesh(new RoundedBoxGeometry(0.36, 0.24, 0.16, 3, 0.02), chrome, -0.04, 0.05, 0));                           // chimney
+  for (let i = 0; i < 6; i++) inner.add(sphere(0.022, bead, -0.14 + (i % 3) * 0.085 + (i > 2 ? 0.02 : 0), 0.1 - (i > 2 ? 0.085 : 0), 0.079, 1, 1, 0.3));
+  const wheel = mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.07, 18).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x23232b, metalness: 1, roughness: 0.45, flatShading: true }), 0.2, 0.05, 0); inner.add(wheel);
+  inner.add(mesh(new THREE.BoxGeometry(0.03, 0.18, 0.1), chrome, 0.2, -0.02, 0));
+  const fg = new THREE.ConeGeometry(0.085, 0.42, 20, 8, true); fg.translate(0, 0.21, 0);
+  const col = [], c = new THREE.Color(), stops = [[0, 0xffffff], [0.2, 0xffe36b], [0.45, 0x4dffa0], [0.65, 0x49b6ff], [0.85, 0xb45cff], [1, 0xff3fd0]];
+  for (let i = 0; i < fg.attributes.position.count; i++) { const t = fg.attributes.position.getY(i) / 0.42; let k = 0; while (k < stops.length - 2 && t > stops[k + 1][0]) k++; const a = new THREE.Color(stops[k][1]), b = new THREE.Color(stops[k + 1][1]); c.copy(a).lerp(b, THREE.MathUtils.clamp((t - stops[k][0]) / (stops[k + 1][0] - stops[k][0]), 0, 1)); col.push(c.r, c.g, c.b); }
+  fg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  const flame = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false })); flame.position.set(-0.04, 0.16, 0); flame.scale.set(1, 1, 0.8); inner.add(flame);
+  inner.add(sphere(0.085, new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), -0.04, 0.2, 0, 1, 1.2, 0.8));
+  g.userData.flame = flame;
+  const bail = mesh(new THREE.TorusGeometry(0.25, 0.022, 10, 40, Math.PI), chrome, 0, -0.1, -0.135); bail.scale.y = 3.05; inner.add(bail);   // wire bail the chain hangs from, behind the flame
+  inner.position.y = -0.02;
+  g.add(inner, eyelet(0.72));
+  return g;
+}
 function buildName(text) {
   const g = new THREE.Group(), shapes = font.generateShapes(text, 0.66);
   const solid = shapes.map(s => { const c = new THREE.Shape(s.getPoints(10)); return c; });   // no counters for the backing layers
@@ -583,14 +693,8 @@ function collide() {
       }
     }
   }
-  // chains drape around the charms instead of passing through them
-  for (const c of chains) for (const B of bodies) { if (B === c.owner || !B.ks.length) continue;
-    for (const sb of B.ks) { affine(B.idx, sb.wt, tC);
-      for (const pi of c.mid) { const p = X[pi]; tA.subVectors(p, tC); tA.z = -Math.abs(tA.z) - 0.12;   /* chains slip behind a charm, never across its face */ const L2 = tA.lengthSq(), R = sb.r + 0.05; if (L2 >= R * R) continue;
-        const L = Math.sqrt(L2) || 1e-6, C = L - R; let den = IW[pi]; for (let k = 0; k < 4; k++) den += sb.wt[k] * sb.wt[k] * IW[B.idx[k]];
-        const lam = C / den / L * 0.7; p.addScaledVector(tA, -lam * IW[pi]);
-        for (let k = 0; k < 4; k++) X[B.idx[k]].addScaledVector(tA, lam * sb.wt[k] * IW[B.idx[k]]);
-      } } }
+  // chains do not collide with charms: the charms hang in three depth layers (short chains in front, long ones behind),
+  // so a long chain always runs behind the charms above it and nothing gets knocked about
 }
 let drag = null, simT = 0, wind = reduceMotion ? 0 : 1;
 function frameOf(b) {
@@ -633,17 +737,19 @@ const ring = makeBody({ key: 'ring', name: 'Keyring', group: ringGroup, origin: 
 const strap = makeChain({ idx: [anchorP], wt: [1] }, ring.idx[0], ANCHOR.y - (RING_Y + RING_R), null);
 
 const CHARMS = [
-  { key: 'star', name: 'Star Stories', ang: -34, len: 0.85, top: 0.76, a: 0.5, h: 0.5, mass: 0.8, build: buildStar, spheres: [[0, 0, 0, 0.5]], chainSpheres: [[0, 0, 0, 0.24], [-0.25, 0.05, 0, 0.18], [0.25, 0.05, 0, 0.18]] },
-  { key: 'heart', name: 'Family Album', ang: 34, len: 1.15, top: 0.66, a: 0.5, h: 0.45, mass: 1.1, build: buildHeart, spheres: [[0, 0.02, 0, 0.52]], chainSpheres: [[-0.25, 0.1, 0, 0.26], [0.25, 0.1, 0, 0.26], [0, -0.2, 0, 0.22]] },
-  { key: 'rainbow', name: 'Timeline', ang: -54, len: 2.85, top: 0.58, a: 0.65, h: 0.4, mass: 0.9, build: buildRainbow, spheres: [[-0.36, -0.12, 0, 0.4], [0.36, -0.12, 0, 0.4]], chainSpheres: [[-0.45, -0.2, 0, 0.24], [0.45, -0.2, 0, 0.24], [0, 0.15, 0, 0.2]] },
-  { key: 'die', name: 'Game Room', ang: 54, len: 2.5, top: 0.77, a: 0.5, h: 0.5, mass: 1.2, build: buildDie, spheres: [[0, 0, 0, 0.6]], chainSpheres: [[0, 0, 0, 0.5]] },
-  { key: 'name', name: 'Home', ang: -12, len: 4.25, top: 0.7, a: 1.1, h: 0.42, mass: 1.3, build: () => buildName('Lenny'), spheres: [[-0.92, 0, 0, 0.36], [-0.46, 0, 0, 0.36], [0, 0, 0, 0.36], [0.46, 0, 0, 0.36], [0.92, 0, 0, 0.36]], chainSpheres: [] },
-  { key: 'dino', name: 'Dino Land', ang: 12, len: 2.35, top: 0.84, a: 0.45, h: 0.75, mass: 1.4, build: buildDino, spheres: [[0, 0.3, 0.05, 0.45], [0, -0.35, 0, 0.47]], chainSpheres: [[0, 0.3, 0.05, 0.42], [0, -0.35, 0, 0.42]] }
+  { key: 'rainbow', name: 'Timeline', ang: -64, z: 0.3, len: 1.0, top: 0.58, a: 0.65, h: 0.4, mass: 0.9, build: buildRainbow, spheres: [[-0.36, -0.12, 0, 0.4], [0.36, -0.12, 0, 0.4]], chainSpheres: [[-0.45, -0.2, 0, 0.24], [0.45, -0.2, 0, 0.24], [0, 0.15, 0, 0.2]] },
+  { key: 'die', name: 'Game Room', ang: 64, z: 0.3, len: 0.9, top: 0.77, a: 0.5, h: 0.5, mass: 1.2, build: buildDie, spheres: [[0, 0, 0, 0.6]], chainSpheres: [[0, 0, 0, 0.5]] },
+  { key: 'lighter', name: 'Flick Lighter', page: 'flick-lighter', ang: -5, z: 0.3, len: 1.2, top: 0.82, a: 0.4, h: 0.5, mass: 1.0, build: buildLighter, spheres: [[0, -0.34, 0, 0.36], [-0.3, 0.05, 0, 0.26]], chainSpheres: [[0, -0.34, 0, 0.32], [-0.35, 0.05, 0, 0.22]] },
+  { key: 'signal', name: 'Lucky Crossing', page: 'lucky-crossing', ang: -42, z: 0, len: 2.43, top: 0.94, a: 0.4, h: 0.6, mass: 1.3, build: buildSignal, spheres: [[0, 0.47, 0, 0.33], [0, 0, 0, 0.33], [0, -0.47, 0, 0.33]] },
+  { key: 'player', name: 'Kin Audio', page: 'kin-audio', ang: 52, z: 0, len: 2.54, top: 0.72, a: 0.6, h: 0.5, mass: 1.3, build: buildPlayer, spheres: [[-0.3, -0.15, 0, 0.42], [0.3, -0.15, 0, 0.42]], chainSpheres: [[-0.3, -0.18, 0, 0.36], [0.3, -0.18, 0, 0.36]] },
+  { key: 'bag', name: 'Let Us Out', page: 'let-us-out', ang: -24, z: -0.3, len: 3.84, top: 0.8, a: 0.5, h: 0.55, mass: 1.2, build: buildBag, spheres: [[0, -0.08, 0, 0.55]], chainSpheres: [[0, -0.1, 0, 0.5]] },
+  { key: 'grenade', name: 'Smiley Grenade', page: 'smiley-grenade', ang: 24, z: -0.3, len: 3.56, top: 0.8, a: 0.5, h: 0.6, mass: 1.4, build: buildGrenade, spheres: [[0.04, -0.15, 0, 0.55]], chainSpheres: [[0, -0.2, 0, 0.48]] },
+  { key: 'name', name: 'Home', ang: 5, z: -0.3, len: 5.06, top: 0.7, a: 1.1, h: 0.42, mass: 1.3, build: () => buildName('Lenny'), spheres: [[-0.92, 0, 0, 0.36], [-0.46, 0, 0, 0.36], [0, 0, 0, 0.36], [0.46, 0, 0, 0.36], [0.92, 0, 0, 0.36]], chainSpheres: [] }
 ];
 const charms = [];
 for (const c of CHARMS) {
   const group = c.build(); if (group.userData.top) { c.top = group.userData.top; c.a = group.userData.halfW; }
-  const a = THREE.MathUtils.degToRad(c.ang), zOff = Math.abs(c.ang) < 20 ? -0.09 : Math.abs(c.ang) < 40 ? 0.09 : 0;
+  const a = THREE.MathUtils.degToRad(c.ang), zOff = c.z != null ? c.z : Math.abs(c.ang) < 20 ? -0.09 : Math.abs(c.ang) < 40 ? 0.09 : 0;
   const q = v(Math.sin(a) * (RING_R + 0.13), -Math.cos(a) * (RING_R + 0.13), zOff);
   // jump ring joining this chain to the big ring
   const jr = mesh(new THREE.TorusGeometry(0.115, 0.022, 10, 28), chrome, Math.sin(a) * (RING_R + 0.045), -Math.cos(a) * (RING_R + 0.045), zOff * 0.4);
@@ -689,8 +795,12 @@ function project(p, out) { tD.copy(p).project(camera); out.x = (tD.x * .5 + .5) 
 function openCharm(b, sx, sy) {
   spin(b, 13, 6); b.sT = 1.12; setTimeout(() => b.sT = 1, 220);
   if (sx != null && !reduceMotion) sparkle(sx, sy);
-  if (b.key === 'rainbow' || b.key === 'die') setTimeout(() => { location.hash = b.key === 'die' ? 'claw' : 'timeline'; }, reduceMotion ? 0 : 380);
-  else showToast(b.name, b.key === 'name' ? "You're on Lenny's keychain already." : 'This page comes next. Timeline and Game Room are open so far.');
+  if (b.page) { // one of the interactive pieces: its own page on this site
+    if (PIECE_BASE) { if (!window.open(PIECE_BASE + '/' + b.page, '_blank', 'noopener')) showToast(b.name, 'Open lennybug.vercel.app to play with this one.'); }
+    else setTimeout(() => { location.href = '/' + b.page; }, reduceMotion ? 0 : 380);
+  }
+  else if (b.key === 'rainbow' || b.key === 'die') setTimeout(() => { location.hash = b.key === 'die' ? 'claw' : 'timeline'; }, reduceMotion ? 0 : 380);
+  else showToast(b.name, "You're on Lenny's keychain already.");
 }
 const srnav = $('srnav');
 for (const b of charms) { const bt = document.createElement('button'); bt.type = 'button'; bt.className = 'pill'; bt.textContent = b.name; bt.addEventListener('click', () => openCharm(b)); srnav.appendChild(bt); }
