@@ -95,6 +95,8 @@ def tail():
             '</svg>')
 
 html = (here / 'src/template.html').read_text()
+for _k, _f in (('INTRO_CSS', 'intro.css'), ('INTRO_HTML', 'intro.html'), ('INTRO_JS', 'intro.js')):
+    html = html.replace('{{' + _k + '}}', (here / 'src' / _f).read_text())
 def img(m):
     p = here / 'src/assets' / m.group(1)
     return f'data:{MIME[p.suffix]};base64,' + base64.b64encode(p.read_bytes()).decode()
