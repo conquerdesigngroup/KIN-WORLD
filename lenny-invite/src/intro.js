@@ -1,5 +1,5 @@
 <script>
-/* Intro: a rush of bubbles for 2.5 s with bubble sounds, then the sea fades into the invite.
+/* Intro: a rush of bubbles for 2.5 s with bubble sounds, over the hero's paper, which then fades into the invite.
    Browsers only allow sound after a tap, so the sound starts right away where allowed, otherwise on the first touch. */
 (function(){
   var root=document.documentElement,intro=document.getElementById('intro');if(!intro)return;

@@ -47,7 +47,7 @@ html,body{{margin:0;padding:0;width:850px;height:1100px;overflow:hidden}}
   {stage}
   <h1 class="hand"><span>a mermaid birthday party</span><span>for Lenny’s fifth</span></h1>
   <div class="fl"><p>december 30, 2026</p>
-    <div><dt>time:</dt><dd>10:00 AM</dd></div><div><dt>place:</dt><dd>Once Upon an Island</dd></div><div><dt>rsvp:</dt><dd>by 12/15</dd></div></div>
+    <div><dt>time:</dt><dd>2:00 PM</dd></div><div><dt>place:</dt><dd>Once Upon an Island</dd></div><div><dt>rsvp:</dt><dd>by 12/15</dd></div></div>
   <div class="wave w1"></div>
   <div class="tailwrap">{tail}</div>
   <div class="wave w2"></div><div class="wave w3"></div>

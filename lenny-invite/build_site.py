@@ -8,7 +8,7 @@ body = (here / "index.html").read_text()
 m = re.match(r"\s*<title>.*?</title>\s*<meta name=\"claude:viewport-fit-sides\"[^>]*>\s*", body, re.S)
 body = body[m.end():]
 title = "Lenny is turning five · a mermaid birthday"
-desc = "You’re invited! December 30, 2026 at 10:00 AM, Once Upon an Island. RSVP by 12/15."
+desc = "You’re invited! December 30, 2026 at 2:00 PM, Once Upon an Island. RSVP by 12/15."
 head = f"""<!doctype html>
 <html lang="en">
 <head>
