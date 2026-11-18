@@ -1,6 +1,6 @@
 <script>
 /* Underwater intro. Six cut-paper reef layers are drawn in screen space, then scaled about a vanishing point
-   as if a camera swims forward (scale = (P+d)/(P+d-z)), ending inside a paper-coloured light that becomes the invite. */
+   as if a camera swims forward (scale = (P+d)/(P+d-z)), then the sea fades into the invite. */
 (function(){
   var root=document.documentElement,intro=document.getElementById('intro'),reef=document.getElementById('reef'),btn=document.getElementById('openInvite');
   if(!intro||!reef||!btn)return;
@@ -58,8 +58,6 @@
     W=intro.clientWidth||innerWidth;H=intro.clientHeight||innerHeight;ox=W/2;oy=H*.42;seed=20261230;layers=[];
     var U=Math.min(W*1.05,H*.66),SF=[1,.88,.76,.66,.57,.5,.44,.39],html='',i,k;
     // light at the far end of the reef (the invite's paper)
-    var cw=W*CARD,chh=H*CARD;
-    html+='<div class="lay in-card" style="left:'+f(ox-cw/2)+'px;top:'+f(oy-chh/2)+'px;width:'+f(cw)+'px;height:'+f(chh)+'px;transform-origin:50% 50%"><i></i><b></b></div>';
     for(i=NL-1;i>=0;i--){
       var fog=i*.08,base=H*(.935-i*.045),wall=H*(.13-i*.011),sf=SF[i],o=mix('#ffffff',fog*.8),ow=Math.max(1.4,3.2*sf);
       function top(x){var u=x/W*2-1;return base-wall*Math.pow(Math.abs(u),2.3)+Math.sin(x*.021*(1+i*.3)+i*2)*7*sf+Math.sin(x*.05+i)*3*sf}
@@ -94,8 +92,7 @@
     reef.innerHTML=html;
     var els=reef.children,di=[];
     // children order: portal, then per layer i=5..0: svg, fx (i>0)
-    layers.push({el:els[0],d:DP,keep:true});
-    var j=1;for(i=NL-1;i>=0;i--){layers.push({el:els[j++],d:DEP[i]});if(i>0)layers.push({el:els[j++],d:DEP[i]-(DEP[i]-DEP[i-1])*.45});}
+    var j=0;for(i=NL-1;i>=0;i--){layers.push({el:els[j++],d:DEP[i]});if(i>0)layers.push({el:els[j++],d:DEP[i]-(DEP[i]-DEP[i-1])*.45});}
     frame(0,0);
   }
   function frame(z,t){
@@ -112,16 +109,16 @@
     else{var t=Math.min(1,(now-tGo)/DUR),e=.5-Math.cos(Math.PI*Math.pow(t,1.15))/2,w=Math.sin(t*Math.PI);
       frame(ZEND*e,t);
       reef.style.transform='translate('+(Math.sin(t*9)*10*w).toFixed(2)+'px,'+(Math.cos(t*7)*6*w).toFixed(2)+'px) rotate('+(Math.sin(t*8)*1.6*w).toFixed(3)+'deg)';
-      if(t>.84&&!intro.classList.contains('out'))reveal();
+      if(t>.62&&!intro.classList.contains('out'))reveal();
       if(t>=1)return;}
     requestAnimationFrame(loop);
   }
   function reveal(){intro.classList.add('out');root.classList.remove('gated');scrollTo(0,0);
-    setTimeout(function(){gone=true;intro.remove();},900);}
+    setTimeout(function(){gone=true;intro.remove();},1500);}
   function open(){
     if(going)return;going=true;intro.classList.add('go');
     if(reduce){reveal();return;}
-    ZEND=P+DP-(P+DP)*CARD*.8;tGo=performance.now();
+    ZEND=DEP[NL-1]+P*.95;tGo=performance.now();
     // bubbles burst from the button
     for(var i=0;i<14;i++){var b=document.createElement('i');b.className='ib';var a=Math.PI*2*i/14;
       b.style.cssText='--x:50%;--y:58%;--s:'+(10+Math.random()*18).toFixed(0)+'px;animation:inburst .9s ease-out forwards;--tx:'+(Math.cos(a)*(70+Math.random()*90)).toFixed(0)+'px;--ty:'+(Math.sin(a)*(50+Math.random()*80)-60).toFixed(0)+'px;z-index:6';

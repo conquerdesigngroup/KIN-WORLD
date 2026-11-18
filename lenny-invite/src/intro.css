@@ -6,7 +6,7 @@
     radial-gradient(60% 30% at 8% 70%,rgba(255,95,168,.4),transparent 70%),
     radial-gradient(60% 30% at 96% 62%,rgba(111,240,228,.28),transparent 70%),
     linear-gradient(180deg,#6f8cff 0%,#4a36dc 30%,var(--sea-2) 68%,var(--sea-3));
-  transition:opacity .75s ease}
+  transition:opacity 1.3s ease-in-out}
 html.gated,html.gated body{overflow:hidden}
 html.gated .intro,.intro.go{display:block}
 html.gated main *{animation-play-state:paused!important}
@@ -19,13 +19,6 @@ html.gated main *{animation-play-state:paused!important}
 .lay .sw{transform-box:fill-box;transform-origin:50% 100%;animation:insw var(--t,3s) steps(1) infinite;animation-delay:var(--d,0s)}
 @keyframes insw{0%,100%{transform:rotate(-2.6deg)}25%{transform:rotate(.2deg)}50%{transform:rotate(3deg)}75%{transform:rotate(.6deg)}}
 .intro.go .sw,.intro.go .rays{animation-play-state:paused}
-.in-card{animation:incard 3.2s ease-in-out infinite alternate}
-.in-card i{position:absolute;inset:-70%;border-radius:50%;background:radial-gradient(closest-side,rgba(255,240,248,.75),rgba(170,225,255,.35) 45%,transparent 72%)}
-.in-card b{position:absolute;inset:0;background:var(--paper) var(--tex);background-size:120px;
-  clip-path:polygon(0 3%,8% 0,22% 2.5%,37% .5%,52% 3%,68% .5%,84% 2.5%,100% 0,98% 16%,100% 33%,97.5% 50%,100% 68%,98% 85%,100% 100%,86% 98%,70% 100%,54% 97.5%,38% 100%,22% 98%,8% 100%,0 97.5%,2% 82%,0 66%,2.5% 50%,0 33%,2% 16%)}
-@keyframes incard{from{rotate:-7deg;translate:0 -5px}to{rotate:5deg;translate:0 6px}}
-.intro.go .in-card{animation:incardgo 2.2s ease forwards}
-@keyframes incardgo{from{rotate:-2deg}to{rotate:0deg;translate:0 0}}
 .lay .sw.up{transform-origin:50% 0}
 .ib{position:absolute;left:var(--x);top:var(--y);width:var(--s);height:var(--s);border-radius:50%;
   background:radial-gradient(circle at 30% 26%,rgba(255,255,255,.95) 0 5%,rgba(255,255,255,0) 14%),
