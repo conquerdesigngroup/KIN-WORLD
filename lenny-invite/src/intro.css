@@ -1,0 +1,20 @@
+
+/* ---------- intro: 2.5 seconds of bubbles rushing up through the sea, then the invite fades in ---------- */
+.intro{display:none;position:fixed;inset:0;z-index:50;overflow:hidden;isolation:isolate;pointer-events:none;
+  background:var(--paper);
+  transition:opacity .7s ease-in-out}
+html.gated,html.gated body{overflow:hidden}
+html.gated .intro,.intro.go{display:block}
+html.gated main *{animation-play-state:paused!important}
+.intro::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:var(--grain) 0 0/420px;mix-blend-mode:overlay}
+.intro.out{opacity:0}
+.intro .ht{z-index:0}
+.ib{position:absolute;left:var(--x);top:100%;width:var(--s);height:var(--s);border-radius:50%;z-index:2;
+  background:
+    radial-gradient(circle at 30% 26%,rgba(255,255,255,.95) 0 3%,rgba(255,255,255,0) 10%),
+    radial-gradient(ellipse 30% 14% at 68% 80%,rgba(255,255,255,.5),rgba(255,255,255,0)),
+    radial-gradient(circle at 50% 50%,rgba(255,255,255,0) 48%,rgba(255,160,215,.34) 66%,rgba(120,225,255,.42) 80%,rgba(255,238,150,.38) 91%,rgba(170,140,255,.55) 100%),
+    conic-gradient(from 40deg,rgba(255,170,215,.3),rgba(140,230,255,.3),rgba(255,245,170,.3),rgba(185,160,255,.3),rgba(140,255,220,.3),rgba(255,170,215,.3));
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.75),inset 0 -2px 8px rgba(150,120,255,.25),0 3px 7px rgba(80,50,70,.14);
+  animation:ibup var(--t,1.6s) cubic-bezier(.3,.1,.5,1) var(--d,0s) both}
+@keyframes ibup{0%{transform:translate(0,0) scale(.5)}35%{transform:translate(var(--w,10px),-45vh) scale(1)}70%{transform:translate(calc(var(--w,10px)*-1),-90vh)}100%{transform:translate(var(--w,10px),calc(-100vh - var(--s) - 20px)) scale(1.05)}}
